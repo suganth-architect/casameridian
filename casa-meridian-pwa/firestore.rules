@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if the request is valid structure
+    function isValidRequest() {
+      return request.resource.data.status == 'pending' &&
+             request.resource.data.source == 'pwa' &&
+             request.resource.data.guestName is string &&
+             request.resource.data.guestName.size() > 0 &&
+             request.resource.data.phone is string &&
+             request.resource.data.phone.size() > 0;
+    }
+
+    match /bookingRequests/{requestId} {
+      allow create: if isValidRequest();
+      allow read, update, delete: if request.auth != null && 
+        (request.auth.token.email == 'luckysuganth@gmail.com' || 
+         request.auth.token.email == 'mbsujith23@gmail.com');
+    }
+    
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+        (request.auth.token.email == 'luckysuganth@gmail.com' || 
+         request.auth.token.email == 'mbsujith23@gmail.com');
+    }
+  }
+}

@@ -1,92 +1,111 @@
 import { NextResponse } from 'next/server';
-import { subDays, format, parse, isValid } from 'date-fns';
+import { subDays, format, isValid, parseISO, parse } from 'date-fns';
+import { getAdminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
-function parseICSDate(icsDate: string): Date | null {
-    if (!icsDate) return null;
-    // Remove potential 'VALUE=DATE:' prefix parts or other params
-    // e.g. DTSTART;VALUE=DATE:20231024
-    const value = icsDate.includes(':') ? icsDate.split(':').pop() : icsDate;
+// Helper: Custom lightweight ICS parser
+function parseICS(icsData: string) {
+    const blockedRanges: { from: string; to: string }[] = [];
+    const lines = icsData.split(/\r\n|\n|\r/);
+    let inEvent = false;
+    let dtStart: Date | null = null;
+    let dtEnd: Date | null = null;
 
-    if (!value) return null;
+    for (const line of lines) {
+        if (line.startsWith('BEGIN:VEVENT')) {
+            inEvent = true;
+            dtStart = null;
+            dtEnd = null;
+        } else if (line.startsWith('END:VEVENT')) {
+            if (inEvent && dtStart && dtEnd && isValid(dtStart) && isValid(dtEnd)) {
+                // Airbnb Rule: End date is exclusive (checkout). Block until End - 1 day.
+                const adjustedEnd = subDays(dtEnd, 1);
+                if (adjustedEnd >= dtStart) {
+                    blockedRanges.push({
+                        from: format(dtStart, 'yyyy-MM-dd'),
+                        to: format(adjustedEnd, 'yyyy-MM-dd'),
+                    });
+                }
+            }
+            inEvent = false;
+        } else if (inEvent) {
+            // Robust Extraction: Handle extra params like DTSTART;TZID=Asia/Kolkata:2023...
+            if (line.startsWith('DTSTART')) {
+                const val = line.substring(line.indexOf(':') + 1);
+                dtStart = parseDateString(val);
+            } else if (line.startsWith('DTEND')) {
+                const val = line.substring(line.indexOf(':') + 1);
+                dtEnd = parseDateString(val);
+            }
+        }
+    }
+    return blockedRanges;
+}
 
-    try {
-        // Handle "20231024" format (8 chars)
-        if (value.length === 8) {
-            return parse(value, 'yyyyMMdd', new Date());
-        }
-        // Handle "20231024T120000Z" or similar
-        // We can just take the first 8 chars for date-based blocking
-        if (value.length >= 8) {
-            return parse(value.substring(0, 8), 'yyyyMMdd', new Date());
-        }
-    } catch (e) {
-        console.error('Error parsing date:', value, e);
+// Helper: Parse ICS date strings (YYYYMMDD or YYYYMMDDT...)
+function parseDateString(str: string): Date | null {
+    const raw = str.trim();
+    // Remove Time component (T...) and Z suffix to get pure Date YYYYMMDD
+    const dateOnly = raw.split('T')[0].replace('Z', '');
+
+    if (dateOnly.length === 8) {
+        return parse(dateOnly, 'yyyyMMdd', new Date());
     }
     return null;
 }
 
 export async function GET() {
-    const icalUrl = process.env.AIRBNB_ICAL_URL;
+    const iCalUrl = process.env.AIRBNB_ICAL_URL;
+    let allBlockedDates: { from: string; to: string }[] = [];
 
-    if (!icalUrl || icalUrl.trim() === '') {
-        console.warn('AIRBNB_ICAL_URL is missing or empty.');
-        return NextResponse.json({ blocked: [] });
+    // 1. Fetch & Parse Airbnb ICS (Manual Parser)
+    if (!iCalUrl || iCalUrl.trim() === '') {
+        console.warn('⚠️ AIRBNB_ICAL_URL missing in environment variables');
+    } else {
+        try {
+            const response = await fetch(iCalUrl);
+            if (response.ok) {
+                const text = await response.text();
+                const airbnbBlocked = parseICS(text);
+                allBlockedDates = [...allBlockedDates, ...airbnbBlocked];
+            }
+        } catch (error) {
+            console.error('❌ Error fetching Airbnb iCal:', error);
+        }
     }
 
+    // 2. Fetch Firestore Confirmed Bookings (Admin SDK)
     try {
-        const response = await fetch(icalUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ICS: ${response.statusText}`);
-        }
-        const text = await response.text();
+        const bookingsSnapshot = await getAdminDb()
+            .collection('bookings')
+            .where('status', '==', 'confirmed')
+            .get();
 
-        // Simple manual parsing to avoid library issues
-        const events = [];
-        const lines = text.split(/\r\n|\n|\r/);
-
-        let currentEvent: any = null;
-
-        for (const line of lines) {
-            if (line.trim() === 'BEGIN:VEVENT') {
-                currentEvent = {};
-            } else if (line.trim() === 'END:VEVENT') {
-                if (currentEvent && currentEvent.start && currentEvent.end) {
-                    events.push(currentEvent);
-                }
-                currentEvent = null;
-            } else if (currentEvent) {
-                if (line.startsWith('DTSTART')) {
-                    currentEvent.start = parseICSDate(line);
-                } else if (line.startsWith('DTEND')) {
-                    currentEvent.end = parseICSDate(line);
-                }
-            }
-        }
-
-        const blocked = events.map((event: any) => {
-            if (!isValid(event.start) || !isValid(event.end)) return null;
-
-            // Airbnb "End Date" is exclusive. Block up to the day BEFORE check-out.
-            const blockedTo = subDays(event.end, 1);
+        const firestoreBlocked = bookingsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            // Logic: Block from CheckIn up to (CheckOut - 1 day)
+            const checkOutDate = parseISO(data.checkOut);
+            const blockedEnd = subDays(checkOutDate, 1);
 
             return {
-                from: format(event.start, 'yyyy-MM-dd'),
-                to: format(blockedTo, 'yyyy-MM-dd'),
+                from: data.checkIn,
+                to: format(blockedEnd, 'yyyy-MM-dd'),
             };
-        }).filter(Boolean);
+        });
 
-        return NextResponse.json(
-            { blocked },
-            {
-                headers: {
-                    'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
-                },
-            }
-        );
+        allBlockedDates = [...allBlockedDates, ...firestoreBlocked];
+
     } catch (error) {
-        console.error('Error fetching or parsing iCal:', error);
-        return NextResponse.json({ blocked: [] });
+        console.error('❌ Error fetching Firestore bookings:', error);
     }
+
+    return NextResponse.json(
+        { blocked: allBlockedDates },
+        {
+            headers: {
+                'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+            },
+        }
+    );
 }
