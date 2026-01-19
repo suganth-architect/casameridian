@@ -1,9 +1,9 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { checkAvailability, validateDateRange } from '@/lib/availability';
 import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
 import { FieldValue } from 'firebase-admin/firestore';
+import { differenceInDays, parseISO } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
         try {
             validateDateRange(checkIn, checkOut);
         } catch (e: any) {
-            // e.message will be "Check-out must be after check-in" if 0-night
+            // e.message from validateDateRange is "Check-out must be after check-in"
+            // We append clarification for the user
             return NextResponse.json({
                 error: e.message + " (minimum 1 night)."
             }, { status: 400 });
@@ -40,13 +41,16 @@ export async function POST(req: NextRequest) {
             }, { status: 409 });
         }
 
-        // 4. Calculate Nights & Price
-        // Use date-fns for consistency if needed, but strict difference of Validated YYYY-MM-DD works too
-        const start = new Date(checkIn);
-        const end = new Date(checkOut);
-        // diff in ms / ms per day
-        const diffTime = Math.abs(end.getTime() - start.getTime());
-        const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // 4. Calculate Nights & Price (Timezone Safe)
+        const nights = differenceInDays(parseISO(checkOut), parseISO(checkIn));
+
+        // Safety check (should be covered by validateDateRange but good to be sure)
+        if (nights < 1) {
+            return NextResponse.json({
+                error: "Check-out must be after check-in (minimum 1 night)."
+            }, { status: 400 });
+        }
+
         const totalAmount = nights * pricePerNight;
 
         // 5. Create Booking Request

@@ -4,8 +4,6 @@ import * as React from 'react';
 import { CalendarIcon, Loader2, CheckCircle2 } from 'lucide-react';
 import { differenceInDays, format, parseISO, isWithinInterval, addDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-// Import Getter
-import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
