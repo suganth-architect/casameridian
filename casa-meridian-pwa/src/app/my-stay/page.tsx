@@ -33,6 +33,7 @@ export default function MyStayPage() {
     // State for stays
     const [activeStay, setActiveStay] = useState<Booking | null>(null);
     const [upcomingStay, setUpcomingStay] = useState<Booking | null>(null);
+    const [lastStay, setLastStay] = useState<Booking | null>(null);
     const [loadingBooking, setLoadingBooking] = useState(false);
 
     const [authChecked, setAuthChecked] = useState(false);
@@ -77,6 +78,7 @@ export default function MyStayPage() {
             const data = await res.json();
             setActiveStay(data.activeStay);
             setUpcomingStay(data.upcomingStay);
+            setLastStay(data.lastStay);
             if (data.debug) {
                 setDebugData(data.debug);
             }
@@ -195,14 +197,54 @@ export default function MyStayPage() {
                             </button>
                         </div>
                     </div>
+                ) : lastStay ? (
+                    // STATE 3: Last Stay (History)
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                        <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-zinc-800 opacity-75 grayscale hover:grayscale-0 transition-all">
+                            <div className="flex items-center gap-2 mb-4 text-slate-500">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold uppercase tracking-wider rounded-full">
+                                    Completed
+                                </span>
+                                <span className="text-xs">
+                                    • {differenceInDays(parseISO(lastStay.checkOut), parseISO(lastStay.checkIn))} Nights
+                                </span>
+                            </div>
+
+                            <h2 className="text-xl font-light text-slate-900 dark:text-white mb-2">
+                                Hope you enjoyed your stay
+                            </h2>
+                            <p className="text-sm text-slate-500 mb-6">
+                                Your last visit was in {format(parseISO(lastStay.checkIn), 'MMMM yyyy')}. Come back to Casa Meridian soon!
+                            </p>
+
+                            <div className="border-t border-slate-100 dark:border-zinc-800 pt-4 flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                                <div>
+                                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Check-in</p>
+                                    {format(parseISO(lastStay.checkIn), 'd MMM yyyy')}
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Check-out</p>
+                                    {format(parseISO(lastStay.checkOut), 'd MMM yyyy')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 text-center">
+                            <button
+                                onClick={() => getFirebaseAuth()?.signOut()}
+                                className="text-sm text-slate-500 hover:text-[rgb(var(--meridian-gold))] transition-colors underline underline-offset-4"
+                            >
+                                Sign out and try another number
+                            </button>
+                        </div>
+                    </div>
                 ) : (
-                    // STATE 3: No Active Stay (but might have had one in past, or none at all)
+                    // STATE 4: No Stay Found at all
                     <div className="text-center space-y-6 py-12 animate-in fade-in slide-in-from-bottom-4">
                         <div className="bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 p-8 rounded-2xl shadow-sm">
                             <h2 className="text-lg font-medium text-slate-900 dark:text-white">No active stay found</h2>
                             <p className="text-slate-500 mt-2 text-sm leading-relaxed">
-                                We couldn't find an active booking for today. <br />
-                                However, if you have a confirmed booking for a future date, it should appear as "Upcoming".
+                                We couldn't find any bookings associated with this number.
                             </p>
                         </div>
                         <button

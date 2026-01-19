@@ -1,101 +1,105 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 import { normalizePhoneDigits } from '@/lib/phone';
 
+// Force dynamic/no-cache for this lookup
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     try {
-        // 1. Verify Auth Header
+        // 1. Verify Token
         const authHeader = req.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ error: 'Missing or invalid token' }, { status: 401 });
+            return NextResponse.json({ error: 'Missing token' }, { status: 401 });
         }
-
         const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const { phone_number } = decodedToken;
+        const decoded = await adminAuth.verifyIdToken(token);
 
-        if (!phone_number) {
-            return NextResponse.json({ error: 'Phone number not found in token' }, { status: 400 });
+        // 2. Identify User Phone
+        const userPhone = decoded.phone_number || '';
+        const localPhone = normalizePhoneDigits(userPhone);
+
+        if (!localPhone) {
+            return NextResponse.json({ error: 'No phone number linked to user' }, { status: 400 });
         }
 
-        // 2. Normalize Phone
-        const localPhone = normalizePhoneDigits(phone_number); // 10 digits
+        // 3. Current Time (IST)
+        const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+        // 4. Query Bookings
+        // Priority 1: phoneLocal == localPhone
+        // Priority 2: phone == localPhone (legacy)
+
         const bookingsRef = adminDb.collection('bookings');
 
-        // 3. Query Strategy:
-        // Priority 1: Check phoneLocal (new standard)
-        // Priority 2: Check phone (legacy fallback)
+        // We cannot do OR queries easily across fields without complex indexes sometimes.
+        // Let's run two queries and merge (safe for small scale).
 
-        let allBookings: any[] = [];
+        const q1 = await bookingsRef.where('phoneLocal', '==', localPhone).get();
+        const q2 = await bookingsRef.where('phone', '==', localPhone).get();
+        // Also check if phone is stored with +91 in legacy
+        // const q3 = ...
 
-        // Query 1: New Standard
-        const snapshotLocal = await bookingsRef
-            .where('phoneLocal', '==', localPhone)
-            .where('status', 'in', ['confirmed', 'active'])
-            .get();
+        const allDocs = new Map();
+        [...q1.docs, ...q2.docs].forEach(d => {
+            allDocs.set(d.id, { id: d.id, ...d.data() });
+        });
 
-        if (!snapshotLocal.empty) {
-            allBookings = snapshotLocal.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        } else {
-            // Query 2: Fallback (exact match on 'phone' field for 'confirmed' bookings)
-            // Try searching with the 10-digit version against 'phone' field just in case
-            const snapshotLegacy = await bookingsRef
-                .where('phone', '==', localPhone)
-                .where('status', 'in', ['confirmed', 'active'])
-                .get();
+        let bookings = Array.from(allDocs.values());
 
-            if (!snapshotLegacy.empty) {
-                allBookings = snapshotLegacy.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            } else {
-                // Query 3: Deep Fallback - Try searching with +91 version against 'phone' if distinct
-                // (Only if user's raw phone differs from local, which it usually does e.g. +91...)
-                // But strictly, let's just use what we have. 
-                // If the user registered with "+91..." in the text field, this might match.
-                // Let's assume the user input was somewhat standard.
-                // For now, let's stop at localPhone match against 'phone'.
-            }
-        }
+        // Filter valid statuses
+        bookings = bookings.filter(b => ['confirmed', 'active', 'completed'].includes(b.status));
 
-        // 4. Define Today (IST)
-        const todayIST = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD
+        // Sort by checkIn ascending
+        bookings.sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 
         // 5. Determine State
-        // Sort by checkIn ascending
-        allBookings.sort((a, b) => (a.checkIn > b.checkIn ? 1 : -1));
+        // active: checkIn <= todayIST < checkOut
+        // upcoming: todayIST < checkIn
+        // last: checkOut <= todayIST (most recent past) -- effectively the last one in the list that is past
 
         let activeStay = null;
         let upcomingStay = null;
+        let lastStay = null;
 
-        for (const booking of allBookings) {
-            const { checkIn, checkOut } = booking;
-            // Active: checkIn <= today < checkOut
-            if (checkIn <= todayIST && todayIST < checkOut) {
-                // If we found an active stay, this is the one.
-                activeStay = booking;
-                break;
-            }
-
-            // Upcoming: today < checkIn
-            if (todayIST < checkIn) {
-                if (!upcomingStay) upcomingStay = booking;
+        // Iterate to find active or upcoming
+        for (const b of bookings) {
+            if (b.checkIn <= todayIST && todayIST < b.checkOut) {
+                activeStay = b;
+                break; // Found active
+            } else if (todayIST < b.checkIn) {
+                if (!upcomingStay) upcomingStay = b; // First upcoming
             }
         }
+
+        // Find last stay (most recent past)
+        // We want the one with max checkOut that is <= todayIST
+        const pastBookings = bookings.filter(b => b.checkOut <= todayIST);
+        if (pastBookings.length > 0) {
+            // Sort by checkOut desc
+            pastBookings.sort((a, b) => b.checkOut.localeCompare(a.checkOut));
+            lastStay = pastBookings[0];
+        }
+
+        // Debug Payload (only if requested or in dev)
+        const debug = {
+            phoneRaw: userPhone,
+            phoneLocal: localPhone,
+            todayIST,
+            bookingsFound: bookings.length,
+            bookingIds: bookings.map((b: any) => b.id)
+        };
 
         return NextResponse.json({
             activeStay,
             upcomingStay,
-            debug: process.env.NEXT_PUBLIC_DEBUG === 'true' ? {
-                phoneRaw: phone_number,
-                phoneLocal: localPhone,
-                bookingsFound: allBookings.length,
-                todayIST
-            } : undefined
+            lastStay,
+            debug: process.env.NEXT_PUBLIC_DEBUG === "true" ? debug : undefined
         });
 
-    } catch (error: any) {
-        console.error('Lookup API Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error) {
+        console.error('Stay Lookup Error:', error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

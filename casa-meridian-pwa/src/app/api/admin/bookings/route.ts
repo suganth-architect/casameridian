@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdmin } from '@/lib/admin-auth';
 import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from "firebase-admin/firestore";
 import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
 
 export const dynamic = 'force-dynamic';
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
 
         const newBooking = {
             guestName,
-            phone,
+            phone: phoneLocal,
             phoneLocal,
             phoneE164,
             email: email || '',
@@ -55,8 +56,8 @@ export async function POST(req: NextRequest) {
             pricePerNight: Number(pricePerNight) || 0,
             status: bookingStatus || 'confirmed',
             createdByAdminUid: admin!.uid,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            createdAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
             source: 'admin_manual'
         };
 
