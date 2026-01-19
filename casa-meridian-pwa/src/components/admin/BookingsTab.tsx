@@ -182,9 +182,16 @@ export function BookingsTab() {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                         <h3 className="font-bold text-lg">{booking.guestName}</h3>
-                                        <Badge variant={booking.status === 'confirmed' ? 'default' : 'destructive'}
-                                            className={booking.status === 'confirmed' ? 'bg-green-600' : ''}>
-                                            {booking.status}
+                                        <Badge
+                                            variant={booking.status === 'cancelled' ? 'destructive' : 'default'}
+                                            className={
+                                                booking.status === 'confirmed' ? 'bg-green-600 hover:bg-green-700' :
+                                                    booking.status === 'checked_in' ? 'bg-blue-600 hover:bg-blue-700' :
+                                                        booking.status === 'checked_out' ? 'bg-slate-500 hover:bg-slate-600' :
+                                                            booking.status === 'active' ? 'bg-blue-600 hover:bg-blue-700' : // Legacy support
+                                                                ''
+                                            }>
+                                            {booking.status.replace('_', ' ')}
                                         </Badge>
                                     </div>
                                     <div className="text-sm text-slate-500 flex gap-4">
@@ -196,7 +203,8 @@ export function BookingsTab() {
                                     ₹{booking.totalAmount}
                                 </div>
                                 <div className="flex gap-2">
-                                    {booking.status === 'confirmed' && (
+                                    {/* Hide Cancel button if checked_out or cancelled */}
+                                    {!['checked_out', 'cancelled'].includes(booking.status) && (
                                         <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleCancel(booking.id)}>
                                             Cancel
                                         </Button>

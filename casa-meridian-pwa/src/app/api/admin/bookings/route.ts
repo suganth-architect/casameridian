@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
             checkOut,
             totalAmount: Number(totalAmount) || 0,
             pricePerNight: Number(pricePerNight) || 0,
-            status: bookingStatus || 'confirmed',
+            status: 'confirmed', // FORCE CONFIRMED for new manual bookings
             createdByAdminUid: admin!.uid,
             createdAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),

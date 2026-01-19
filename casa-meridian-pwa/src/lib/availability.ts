@@ -78,10 +78,11 @@ export async function checkAvailability({
     // 1. Check Bookings
     // Query Optimization: Get bookings that start before our requested end date.
     // Then filter in memory for those that end after our requested start date.
-    // Bookings status IN ['confirmed', 'active']
+    // Bookings status IN ['confirmed', 'checked_in', 'active']
+    // Note: 'active' is legacy but must be checked for conflicts
     const bookingsSnapshot = await adminDb.collection('bookings')
         .where('checkIn', '<', checkOut)
-        .where('status', 'in', ['confirmed', 'active'])
+        .where('status', 'in', ['confirmed', 'checked_in', 'active'])
         .get();
 
     for (const doc of bookingsSnapshot.docs) {

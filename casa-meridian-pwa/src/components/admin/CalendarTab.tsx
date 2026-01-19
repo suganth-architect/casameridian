@@ -91,7 +91,8 @@ export function CalendarTab() {
             const loadedBookings: Booking[] = [];
             bSnap.forEach(doc => {
                 const d = doc.data();
-                if (d.checkOut >= rangeStart && ['confirmed', 'active'].includes(d.status)) {
+                // Filter active statuses (confirmed, checked_in, active)
+                if (d.checkOut >= rangeStart && ['confirmed', 'checked_in', 'active'].includes(d.status)) {
                     loadedBookings.push({ id: doc.id, ...d } as Booking);
                 }
             });

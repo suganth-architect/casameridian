@@ -31,7 +31,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             updates.phoneE164 = normalizePhoneE164(updates.phone);
         }
 
-        await adminDb.collection('bookings').doc(id).update(updates);
+        // 1. Fetch current booking for validation
+        const docRef = adminDb.collection('bookings').doc(id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+            return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
+        }
+        const currentData = docSnap.data()!;
+
+        // 2. Status Transition Guards
+        if (updates.status) {
+            // Prevent modifying a finalized booking (checked_out)
+            if (currentData.status === 'checked_out') {
+                if (updates.status === 'confirmed' || updates.status === 'cancelled') {
+                    return NextResponse.json({
+                        error: `Cannot change status from 'checked_out' to '${updates.status}'`
+                    }, { status: 409 });
+                }
+            }
+        }
+
+        await docRef.update(updates);
 
         return NextResponse.json({ success: true });
     } catch (err: any) {
