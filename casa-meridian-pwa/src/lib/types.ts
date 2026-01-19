@@ -39,6 +39,13 @@ export interface Booking {
     checkOutProcessedBy?: string;
 
     rejectionReason?: string; // If KYC rejected
+    rejectedAt?: Timestamp;
+    rejectedBy?: string;
+
+    verifiedAt?: Timestamp;
+    verifiedBy?: string;
+
+    approvedAt?: Timestamp; // timestamp when confirmed
 
     createdAt?: Timestamp;
     updatedAt?: Timestamp;

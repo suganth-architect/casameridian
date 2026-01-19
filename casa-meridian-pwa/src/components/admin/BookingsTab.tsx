@@ -1,18 +1,18 @@
 import * as React from 'react';
 import { format } from 'date-fns';
-import { Plus, Search, Calendar as CalendarIcon, Loader2, CheckCircle, XCircle, LogIn, LogOut, ShieldCheck, ShieldAlert, BadgeCheck } from 'lucide-react';
+import { Plus, Search, Calendar as CalendarIcon, Loader2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { getFirebaseAuth } from '@/lib/firebase';
 import { Booking } from '@/lib/types';
-import { Textarea } from '@/components/ui/textarea';
+import { BookingDetailDrawer } from './booking-detail-drawer';
 
 export function BookingsTab() {
     const [bookings, setBookings] = React.useState<Booking[]>([]);
@@ -20,10 +20,8 @@ export function BookingsTab() {
     const [search, setSearch] = React.useState('');
     const [isAddOpen, setIsAddOpen] = React.useState(false);
 
-    // Rejection Dialog State
-    const [rejectId, setRejectId] = React.useState<string | null>(null);
-    const [rejectReason, setRejectReason] = React.useState('');
-    const [processingId, setProcessingId] = React.useState<string | null>(null); // For loading states on specific rows
+    // Detail Drawer State
+    const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(null);
 
     // Form State for Manual Booking
     const [formData, setFormData] = React.useState({
@@ -93,82 +91,6 @@ export function BookingsTab() {
         }
     };
 
-    const handleVerifyKyc = async (id: string, action: 'verify' | 'reject') => {
-        if (action === 'reject') {
-            setRejectId(id);
-            return;
-        }
-
-        if (!confirm("Confirm KYC verification?")) return;
-
-        setProcessingId(id);
-        try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            await fetch(`/api/admin/bookings/${id}/verify-kyc`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ action: 'verify' })
-            });
-            fetchBookings();
-        } catch (e) { console.error(e); } finally { setProcessingId(null); }
-    };
-
-    const confirmReject = async () => {
-        if (!rejectId || !rejectReason) return;
-        setProcessingId(rejectId);
-        try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            await fetch(`/api/admin/bookings/${rejectId}/verify-kyc`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ action: 'reject', reason: rejectReason })
-            });
-            setRejectId(null);
-            setRejectReason('');
-            fetchBookings();
-        } catch (e) { console.error(e); } finally { setProcessingId(null); }
-    };
-
-    const handleLink = (url: string) => {
-        window.open(url, '_blank');
-    };
-
-    const handleCheckIn = async (id: string) => {
-        if (!confirm("Confirm Check-in? This will activate the stay.")) return;
-        setProcessingId(id);
-        try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            const res = await fetch(`/api/admin/bookings/${id}/check-in`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.error || "Check-in failed");
-            } else {
-                fetchBookings();
-            }
-        } catch (e) { console.error(e); } finally { setProcessingId(null); }
-    };
-
-    const handleCheckOut = async (id: string) => {
-        if (!confirm("Confirm Check-out? This will end the stay.")) return;
-        setProcessingId(id);
-        try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            const res = await fetch(`/api/admin/bookings/${id}/check-out`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.error || "Check-out failed");
-            } else {
-                fetchBookings();
-            }
-        } catch (e) { console.error(e); } finally { setProcessingId(null); }
-    };
-
     const bookingStatusColor = (status: string) => {
         switch (status) {
             case 'confirmed': return 'bg-green-600 hover:bg-green-700';
@@ -179,7 +101,7 @@ export function BookingsTab() {
         }
     };
 
-    const kycStatusColor = (status: string) => {
+    const kycStatusColor = (status: string | undefined) => {
         switch (status) {
             case 'verified': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
             case 'submitted': return 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
@@ -245,24 +167,9 @@ export function BookingsTab() {
                 </Dialog>
             </div>
 
-            {/* Rejection Dialog */}
-            <Dialog open={!!rejectId} onOpenChange={(open) => !open && setRejectId(null)}>
-                <DialogContent>
-                    <DialogHeader><DialogTitle>Reject KYC</DialogTitle></DialogHeader>
-                    <div className="space-y-4">
-                        <Label>Reason for rejection</Label>
-                        <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Blurry image, Name mismatch" />
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setRejectId(null)}>Cancel</Button>
-                            <Button variant="destructive" onClick={confirmReject} disabled={!rejectReason}>Reject Document</Button>
-                        </DialogFooter>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
             <div className="grid gap-4">
                 {loading ? <div className="text-center py-8"><Loader2 className="animate-spin mx-auto" /></div> : filtered.map(booking => (
-                    <Card key={booking.id} className="overflow-hidden">
+                    <Card key={booking.id} className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedBooking(booking)}>
                         <CardContent className="p-0">
                             <div className="flex flex-col md:flex-row items-start md:items-center p-4 gap-4">
                                 {/* Booking Info */}
@@ -273,60 +180,21 @@ export function BookingsTab() {
                                             {booking.status.replace('_', ' ')}
                                         </Badge>
                                         <Badge variant="outline" className={`${kycStatusColor(booking.kycStatus || 'not_submitted')}`}>
-                                            KYC: {(booking.kycStatus || 'pending').replace('_', ' ')}
+                                            KYC: {(booking.kycStatus || 'not_submitted').replace('_', ' ')}
                                         </Badge>
                                     </div>
                                     <div className="text-sm text-slate-500 flex flex-col md:flex-row gap-2 md:gap-4">
                                         <span>{booking.phone}</span>
                                         <span className="flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> {booking.checkIn} → {booking.checkOut}</span>
                                     </div>
-                                    {/* KYC Documents Links */}
-                                    {booking.kycDocuments && booking.kycDocuments.length > 0 && (
-                                        <div className="flex gap-2 mt-2">
-                                            {booking.kycDocuments.map((doc, i) => (
-                                                <Button key={i} variant="ghost" size="sm" className="h-6 px-2 text-xs text-blue-600 underline" onClick={() => handleLink(doc.url)}>
-                                                    {doc.type} ({doc.fileName.slice(0, 10)}...)
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Actions */}
                                 <div className="flex items-center gap-2 flex-wrap justify-end">
-                                    {processingId === booking.id && <Loader2 className="animate-spin text-slate-400" />}
-
-                                    {/* KYC Actions */}
-                                    {['submitted', 'not_submitted', 'rejected'].includes(booking.kycStatus || 'not_submitted') && booking.status === 'confirmed' && (
-                                        <>
-                                            {booking.kycStatus === 'submitted' && (
-                                                <>
-                                                    <Button size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700 h-8" onClick={() => handleVerifyKyc(booking.id, 'verify')}>
-                                                        <BadgeCheck className="w-4 h-4 mr-1" /> Verify
-                                                    </Button>
-                                                    <Button size="sm" variant="destructive" className="h-8" onClick={() => handleVerifyKyc(booking.id, 'reject')}>
-                                                        <ShieldAlert className="w-4 h-4" />
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </>
-                                    )}
-
-                                    {/* Check-In Action */}
-                                    {booking.status === 'confirmed' && booking.kycStatus === 'verified' && (
-                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8" onClick={() => handleCheckIn(booking.id)}>
-                                            <LogIn className="w-4 h-4 mr-1" /> Check-in
-                                        </Button>
-                                    )}
-
-                                    {/* Check-Out Action */}
-                                    {booking.status === 'checked_in' && (
-                                        <Button size="sm" variant="outline" className="text-slate-700 text-xs uppercase tracking-wider font-bold h-8 border-2" onClick={() => handleCheckOut(booking.id)}>
-                                            <LogOut className="w-4 h-4 mr-1" /> Check-out
-                                        </Button>
-                                    )}
-
-                                    <div className="text-sm font-mono font-medium ml-2">
+                                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedBooking(booking); }}>
+                                        <Eye className="w-4 h-4 mr-2" /> View Details
+                                    </Button>
+                                    <div className="text-sm font-mono font-medium ml-2 border-l pl-2">
                                         ₹{booking.totalAmount}
                                     </div>
                                 </div>
@@ -335,6 +203,13 @@ export function BookingsTab() {
                     </Card>
                 ))}
             </div>
+
+            <BookingDetailDrawer
+                booking={selectedBooking}
+                open={!!selectedBooking}
+                onClose={() => setSelectedBooking(null)}
+                onUpdate={() => { fetchBookings(); setSelectedBooking(null); }}
+            />
         </div>
     );
 }

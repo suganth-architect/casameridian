@@ -2,7 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdmin } from '@/lib/admin-auth';
 import { adminDb } from '@/lib/firebase-admin';
+import { FieldValue } from "firebase-admin/firestore";
 import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
+import { Booking } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,14 +16,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     try {
         const body = await req.json();
-        const updates: any = { updatedAt: new Date() };
+        // Use Record<string, any> to allow FieldValue which doesn't match Booking interface strictly
+        const updates: Record<string, any> = { updatedAt: FieldValue.serverTimestamp() };
+
 
         // Allow updating specific fields
         const allowedFields = ['guestName', 'phone', 'email', 'checkIn', 'checkOut', 'totalAmount', 'status', 'notes'];
 
         for (const field of allowedFields) {
             if (body[field] !== undefined) {
-                updates[field] = body[field];
+                updates[field as keyof Booking] = body[field];
             }
         }
 
