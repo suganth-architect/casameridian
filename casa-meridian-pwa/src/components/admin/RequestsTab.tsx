@@ -30,33 +30,35 @@ export function RequestsTab() {
     }, []);
 
     const handleApprove = async (req: any) => {
-        const db = getFirestoreDb();
-        if (!db || !confirm(`Approve booking for ${req.guestName}?`)) return;
+        const auth = getFirebaseAuth();
+        if (!auth?.currentUser || !confirm(`Approve booking for ${req.guestName}?`)) return;
 
         try {
-            // 1. Create Confirmed Booking
-            await addDoc(collection(db, 'bookings'), {
-                guestName: req.guestName,
-                phone: req.phone, // Raw requests phone
-                phoneLocal: normalizePhoneDigits(req.phone),
-                phoneE164: normalizePhoneE164(req.phone),
-                email: req.email || '',
-                checkIn: req.checkIn,
-                checkOut: req.checkOut,
-                nights: req.nights,
-                totalAmount: req.totalAmount,
-                pricePerNight: req.pricePerNight,
-                requestId: req.id,
-                status: 'confirmed',
-                createdAt: serverTimestamp(),
-                approvedAt: serverTimestamp(),
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/admin/approve-request', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ requestId: req.id }),
             });
 
-            // 2. Update Request Status
-            await updateDoc(doc(db, 'bookingRequests', req.id), { status: 'approved', updatedAt: serverTimestamp() });
+            if (!res.ok) {
+                const data = await res.json();
+                if (res.status === 409) {
+                    alert(`Conflict detected!\n\n${data.error}\nType: ${data.conflict.type}\nStart: ${data.conflict.startDate}\nEnd: ${data.conflict.endDate}`);
+                } else {
+                    alert(`Error: ${data.error || 'Failed to approve'}`);
+                }
+                return;
+            }
+
+            // Success (Firestore listener will update UI)
+
         } catch (err) {
             console.error(err);
-            alert("Error approving");
+            alert("Network error approving request");
         }
     };
 

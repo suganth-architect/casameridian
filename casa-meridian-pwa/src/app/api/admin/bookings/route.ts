@@ -4,6 +4,7 @@ import { verifyAdmin } from '@/lib/admin-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from "firebase-admin/firestore";
 import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
+import { checkAvailability, validateDateRange } from '@/lib/availability';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,20 @@ export async function POST(req: NextRequest) {
         const phoneLocal = normalizePhoneDigits(phone);
         const phoneE164 = normalizePhoneE164(phone);
 
-        // TODO: Availability Check (Optional for Admin but Recommended)
+        // Availability Check
+        try {
+            validateDateRange(checkIn, checkOut);
+        } catch (e: any) {
+            return NextResponse.json({ error: e.message }, { status: 400 });
+        }
+
+        const availability = await checkAvailability({ checkIn, checkOut });
+        if (!availability.ok) {
+            return NextResponse.json({
+                error: 'Dates not available',
+                conflict: availability.conflict
+            }, { status: 409 });
+        }
 
         const newBooking = {
             guestName,

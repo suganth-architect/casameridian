@@ -148,18 +148,33 @@ export function CalendarTab() {
         if (!blockForm.startDate || !blockForm.endDate) return;
         setSubmittingBlock(true);
         try {
-            const db = getFirestoreDb();
             const auth = getFirebaseAuth();
-            if (!db || !auth?.currentUser) return;
+            if (!auth?.currentUser) return;
 
-            await addDoc(collection(db, 'calendarBlocks'), {
-                startDate: format(blockForm.startDate, 'yyyy-MM-dd'),
-                endDate: format(blockForm.endDate, 'yyyy-MM-dd'),
-                type: blockForm.type,
-                note: blockForm.note,
-                createdBy: auth.currentUser.email,
-                createdAt: serverTimestamp()
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/admin/calendar-blocks', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    startDate: format(blockForm.startDate, 'yyyy-MM-dd'),
+                    endDate: format(blockForm.endDate, 'yyyy-MM-dd'),
+                    type: blockForm.type,
+                    note: blockForm.note
+                }),
             });
+
+            if (!res.ok) {
+                const data = await res.json();
+                if (res.status === 409) {
+                    alert(`Date Conflict!\n\n${data.error}\nType: ${data.conflict.type}\nBlocker: ${data.conflict.reason || 'Existing Booking'}\nRange: ${data.conflict.startDate} - ${data.conflict.endDate}`);
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+                return;
+            }
 
             setIsAddBlockOpen(false);
             setBlockForm({ startDate: undefined, endDate: undefined, type: 'maintenance', note: '' });
