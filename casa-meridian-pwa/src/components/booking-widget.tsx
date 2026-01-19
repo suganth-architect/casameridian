@@ -182,7 +182,7 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="center">
-                            {!loading && <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={handleDateSelect} numberOfMonths={1} disabled={[{ before: new Date() }, ...blockedRanges]} min={2} />}
+                            {!loading && <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={handleDateSelect} numberOfMonths={1} disabled={[{ before: new Date() }, ...blockedRanges]} />}
                         </PopoverContent>
                     </Popover>
                     {overlapError && <p className="text-xs text-red-500 text-center font-medium">Selected dates overlap with an existing booking.</p>}
