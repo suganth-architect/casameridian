@@ -4,7 +4,7 @@ import { verifyAdmin } from '@/lib/admin-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from "firebase-admin/firestore";
 
-import { checkAvailability, validateDateRange, blockEndInclusiveToExclusive, validateBlockRange } from '@/lib/availability';
+import { checkAvailability, blockEndInclusiveToExclusive, validateBlockRange } from '@/lib/availability';
 
 export const dynamic = 'force-dynamic';
 

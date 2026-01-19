@@ -2,11 +2,9 @@
 
 import * as React from 'react';
 import { CalendarIcon, Loader2, CheckCircle2 } from 'lucide-react';
-import { differenceInDays, format, parseISO, isWithinInterval } from 'date-fns';
+import { differenceInDays, format, parseISO, isWithinInterval, addDays } from 'date-fns';
 import { DateRange } from 'react-day-picker';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 // Import Getter
-import { getFirestoreDb } from '@/lib/firebase';
 import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
 
 import { cn } from '@/lib/utils';
@@ -32,6 +30,7 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
     const [success, setSuccess] = React.useState(false);
     const [lastRequest, setLastRequest] = React.useState<{ name: string, nights: number } | null>(null);
     const [overlapError, setOverlapError] = React.useState(false);
+    const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
     // Form State
     const [guestName, setGuestName] = React.useState('');
@@ -60,6 +59,49 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
         fetchAvailability();
     }, []);
 
+    // Enforce 1-Night Minimum Rule
+    React.useEffect(() => {
+        if (date?.from) {
+            // Case 1: No Check-out selected yet -> Auto select next day
+            if (!date.to) {
+                // We do this via a small timeout to let the user pick if they are fast, 
+                // BUT the requirement says "Auto-set... if check-out is empty".
+                // Actually, typically date range pickers wait for second click.
+                // If we force set it immediately, it might be annoying if they want to pick a later date.
+                // Re-reading definition: "When user selects check-in date: Auto-set check-out to the next day... if check-out is empty" - this implies immediate feedback.
+                // Let's set it.
+                setDate(prev => ({ from: prev!.from!, to: addDays(prev!.from!, 1) }));
+            }
+            // Case 2: Check-out exists but is <= Check-in (Same day or before)
+            else if (date.to && differenceInDays(date.to, date.from) < 1) {
+                setDate(prev => ({ from: prev!.from!, to: addDays(prev!.from!, 1) }));
+            }
+        }
+    }, [date?.from]); // specific dependency to avoid loops? No, if we change `date` it triggers. Need to be careful.
+    // If I setDate inside, it triggers again. 
+    // If logic is stable (to = from + 1), it shouldn't loop infinitely if already correct.
+    // BUT `react-day-picker` might fire weirdly.
+    // Let's try to be safer:
+
+    const handleDateSelect = (range: DateRange | undefined) => {
+        if (!range) {
+            setDate(undefined);
+            return;
+        }
+
+        let newRange = { ...range };
+
+        // 1. If we have a start date
+        if (newRange.from) {
+            // If End is missing OR End is same/before Start -> Set End to Start + 1
+            if (!newRange.to || differenceInDays(newRange.to, newRange.from) < 1) {
+                newRange.to = addDays(newRange.from, 1);
+            }
+        }
+
+        setDate(newRange);
+    };
+
     React.useEffect(() => {
         if (date?.from && date?.to && blockedRanges.length > 0) {
             const isOverlapping = blockedRanges.some(range => {
@@ -81,35 +123,45 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
     const totalPrice = totalNights * pricePerNight;
 
     const handleSubmit = async () => {
-        const db = getFirestoreDb(); // Lazy Init Here
-        if (!db) {
-            console.error("Firebase DB not ready");
-            alert("System loading... please try again.");
-            return;
-        }
-
         if (!date?.from || !date?.to || !guestName || !phone || overlapError) return;
 
         setSubmitting(true);
+        setErrorMessage(null);
+
         try {
             const currentRequest = { name: guestName, nights: totalNights };
 
-            await addDoc(collection(db, 'bookingRequests'), {
+            const payload = {
                 guestName,
-                phone, // phoneRaw
-                phoneLocal: normalizePhoneDigits(phone), // Renamed from phoneDigits
-                phoneE164: normalizePhoneE164(phone),
+                phone,
                 email,
                 notes,
                 checkIn: format(date.from, 'yyyy-MM-dd'),
                 checkOut: format(date.to, 'yyyy-MM-dd'),
-                nights: totalNights,
-                pricePerNight,
-                totalAmount: totalPrice,
-                status: 'pending',
-                source: 'pwa',
-                createdAt: serverTimestamp(),
+                pricePerNight
+            };
+
+            const res = await fetch('/api/booking-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                // Handle 400 / 409
+                if (data.error) {
+                    setErrorMessage(data.error);
+                    // If conflict, maybe show specific error?
+                    if (res.status === 409) {
+                        setOverlapError(true);
+                    }
+                } else {
+                    setErrorMessage("An error occurred. Please try again.");
+                }
+                return;
+            }
 
             setLastRequest(currentRequest);
             setSuccess(true);
@@ -120,7 +172,7 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
             setNotes('');
         } catch (error) {
             console.error("Error submitting booking:", error);
-            alert("Something went wrong. Please try again.");
+            setErrorMessage("Network error. Please try again.");
         } finally {
             setSubmitting(false);
         }
@@ -154,16 +206,17 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="center">
-                            {!loading && <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={1} disabled={[{ before: new Date() }, ...blockedRanges]} min={2} />}
+                            {!loading && <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={handleDateSelect} numberOfMonths={1} disabled={[{ before: new Date() }, ...blockedRanges]} min={2} />}
                         </PopoverContent>
                     </Popover>
                     {overlapError && <p className="text-xs text-red-500 text-center font-medium">Selected dates overlap with an existing booking.</p>}
+                    {errorMessage && <p className="text-xs text-red-600 text-center font-bold bg-red-50 p-2 rounded">{errorMessage}</p>}
                 </div>
 
                 {totalNights > 0 && !overlapError && (
                     <div className="space-y-4 animate-in fade-in">
                         <div className="bg-slate-50 p-4 rounded-xl flex justify-between text-sm font-medium">
-                            <span>{totalNights} Nights</span>
+                            <span className="font-bold text-[rgb(var(--meridian-blue))]">{totalNights} {totalNights === 1 ? 'Night' : 'Nights'}</span>
                             <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalPrice)}</span>
                         </div>
                         <div className="space-y-2"><Label>Full Name <span className="text-red-500">*</span></Label><Input value={guestName} onChange={e => setGuestName(e.target.value)} /></div>
