@@ -40,27 +40,18 @@ export function Hero() {
                     priority
                     onError={() => setSrc(FALLBACK_URL)} // Safe fallback
                 />
-                <div className="absolute inset-0 bg-black/40" />
+                {/* Cinematic Overlay: Gradient black 40% top + 70% bottom + subtle blur */}
+                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70 backdrop-blur-[1px]" />
             </div>
 
-            <div className="relative z-10 text-center px-4 flex flex-col items-center animate-in fade-in zoom-in duration-1000 space-y-6">
-                {/* Logo Integration in Hero */}
-                <div className="relative w-64 h-48 md:w-80 md:h-60 mb-4 transition-transform hover:scale-105 duration-500">
-                    <Image
-                        src="/logo.jpg"
-                        alt="Casa Meridian Logo"
-                        fill
-                        className="object-contain drop-shadow-2xl"
-                        priority
-                    />
-                </div>
+            <div className="relative z-10 text-center px-4 flex flex-col items-center animate-in fade-in zoom-in duration-1000 space-y-6 max-w-4xl mx-auto">
 
-                <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 font-montserrat drop-shadow-xl sr-only">
+                <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-2 font-montserrat drop-shadow-xl tracking-tight leading-tight">
                     Wake Up to the Waves
                 </h1>
 
-                <p className="text-lg md:text-2xl text-slate-100 max-w-xl font-light drop-shadow-md tracking-wider">
-                    Experience ECR's finest private beach villa.
+                <p className="text-lg md:text-2xl text-slate-100 max-w-xl font-light drop-shadow-md tracking-wider mx-auto">
+                    Experience barefoot luxury on Chennai’s ECR.
                 </p>
 
                 <div className="pt-8">

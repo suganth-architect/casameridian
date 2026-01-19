@@ -32,6 +32,7 @@ export async function POST(req: Request) {
         if (type === 'hero') prompt = "Wide angle view of white modern luxury beach villa, ocean facing, infinity pool foreground.";
         else if (type === 'pool') prompt = "Top down aesthetic view of turquoise swimming pool, wooden deck, tropical shadows.";
         else if (type === 'bedroom') prompt = "Luxury master bedroom interior, king bed, white linen, ocean view from window.";
+        else if (type === 'dining') prompt = "Luxury dining area in a modern beach villa, warm ambient lighting, minimal furniture, premium lifestyle photography.";
         else return NextResponse.json({ error: "Invalid asset type" }, { status: 400 });
 
         // 3. Generate Image
