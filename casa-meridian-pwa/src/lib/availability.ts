@@ -1,5 +1,5 @@
-
 import { adminDb } from '@/lib/firebase-admin';
+import { addDays, format, parseISO } from 'date-fns';
 
 export interface AvailabilityCheckResult {
     ok: boolean;
@@ -30,6 +30,14 @@ export function validateDateRange(checkIn: string, checkOut: string): void {
         throw new Error('Check-out must be after check-in');
     }
 }
+
+/**
+ * Helper to convert an inclusive end date (e.g. from a calendar block)
+ * to an exclusive check-out date for availability checks.
+ * Usage: blockEndInclusiveToExclusive("2026-02-05") -> "2026-02-06"
+ */
+export const blockEndInclusiveToExclusive = (endDate: string) =>
+    format(addDays(parseISO(endDate), 1), "yyyy-MM-dd");
 
 /**
  * Checks for booking or block conflicts in the given range.

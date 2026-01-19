@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAdmin } from '@/lib/admin-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from "firebase-admin/firestore";
-import { checkAvailability, validateDateRange } from '@/lib/availability';
-import { addDays, format, parseISO } from 'date-fns';
+
+import { checkAvailability, validateDateRange, blockEndInclusiveToExclusive } from '@/lib/availability';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,8 +118,7 @@ export async function POST(req: NextRequest) {
         // `checkAvailability` will check overlaps.
 
         // Calculate exclusive checkOut for availability check (endDate + 1 day)
-        // usage: parseISO ensures we handle YYYY-MM-DD correctly without local timezone shift artifacts if time is missing
-        const effectiveCheckOut = format(addDays(parseISO(endDate), 1), 'yyyy-MM-dd');
+        const effectiveCheckOut = blockEndInclusiveToExclusive(endDate);
 
         const availability = await checkAvailability({
             checkIn: startDate,
