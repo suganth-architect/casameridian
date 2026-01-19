@@ -35,4 +35,18 @@ export function getAdminAuth() {
 
 export const adminAuth = getAdminAuth();
 
+import { getStorage } from 'firebase-admin/storage';
+
+export function getAdminStorage() {
+    if (getApps().length === 0) {
+        initializeApp({
+            credential: cert(serviceAccount),
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET
+        });
+    }
+    return getStorage();
+}
+
+export const adminStorage = getAdminStorage();
+
 

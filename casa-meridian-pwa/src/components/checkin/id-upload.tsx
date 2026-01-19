@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { getFirebaseStorage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Loader2, Upload, CheckCircle, FileText, ImagePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,28 +26,51 @@ export function IdUpload({ bookingId, onUploadComplete }: IdUploadProps) {
         if (!frontFile) return;
 
         setUploading(true);
-        const storage = getFirebaseStorage();
-        if (!storage) return;
 
         try {
             // Upload Front
-            const frontRef = ref(storage, `checkins/${bookingId}/id-front.jpg`);
-            await uploadBytes(frontRef, frontFile);
-            const frontUrl = await getDownloadURL(frontRef);
+            const frontData = new FormData();
+            frontData.append('file', frontFile);
+            frontData.append('bookingId', bookingId);
+            frontData.append('docType', 'aadhaar'); // Defaulting to aadhaar/id for now, could be dynamic
+
+            const frontRes = await fetch('/api/check-in/upload-kyc', {
+                method: 'POST',
+                body: frontData
+            });
+
+            if (!frontRes.ok) {
+                const err = await frontRes.json();
+                throw new Error(err.error || "Upload failed");
+            }
+
+            const frontJson = await frontRes.json();
+            const frontUrl = frontJson.url;
 
             let backUrl: string | undefined = undefined;
 
             // Upload Back (Optional)
             if (backFile) {
-                const backRef = ref(storage, `checkins/${bookingId}/id-back.jpg`);
-                await uploadBytes(backRef, backFile);
-                backUrl = await getDownloadURL(backRef);
+                const backData = new FormData();
+                backData.append('file', backFile);
+                backData.append('bookingId', bookingId);
+                backData.append('docType', 'aadhaar'); // Same type
+
+                const backRes = await fetch('/api/check-in/upload-kyc', {
+                    method: 'POST',
+                    body: backData
+                });
+
+                if (backRes.ok) {
+                    const backJson = await backRes.json();
+                    backUrl = backJson.url;
+                }
             }
 
             onUploadComplete(frontUrl, backUrl);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error uploading ID:", error);
-            alert("Failed to upload ID. Please try again.");
+            alert(error.message || "Failed to upload ID. Please try again.");
         } finally {
             setUploading(false);
         }

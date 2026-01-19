@@ -1,29 +1,18 @@
-
 import * as React from 'react';
 import { format } from 'date-fns';
-import { Plus, Search, MoreHorizontal, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Plus, Search, Calendar as CalendarIcon, Loader2, CheckCircle, XCircle, LogIn, LogOut, ShieldCheck, ShieldAlert, BadgeCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { getFirebaseAuth } from '@/lib/firebase';
-
-interface Booking {
-    id: string;
-    guestName: string;
-    phone: string;
-    checkIn: string;
-    checkOut: string;
-    status: string;
-    totalAmount: number;
-    email?: string;
-    notes?: string;
-}
+import { Booking } from '@/lib/types';
+import { Textarea } from '@/components/ui/textarea';
 
 export function BookingsTab() {
     const [bookings, setBookings] = React.useState<Booking[]>([]);
@@ -31,7 +20,12 @@ export function BookingsTab() {
     const [search, setSearch] = React.useState('');
     const [isAddOpen, setIsAddOpen] = React.useState(false);
 
-    // Form State
+    // Rejection Dialog State
+    const [rejectId, setRejectId] = React.useState<string | null>(null);
+    const [rejectReason, setRejectReason] = React.useState('');
+    const [processingId, setProcessingId] = React.useState<string | null>(null); // For loading states on specific rows
+
+    // Form State for Manual Booking
     const [formData, setFormData] = React.useState({
         guestName: '',
         phone: '',
@@ -99,21 +93,98 @@ export function BookingsTab() {
         }
     };
 
-    const handleCancel = async (id: string) => {
-        if (!confirm("Are you sure you want to cancel this booking?")) return;
+    const handleVerifyKyc = async (id: string, action: 'verify' | 'reject') => {
+        if (action === 'reject') {
+            setRejectId(id);
+            return;
+        }
+
+        if (!confirm("Confirm KYC verification?")) return;
+
+        setProcessingId(id);
         try {
             const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            await fetch(`/api/admin/bookings/${id}`, {
-                method: 'PATCH', // Soft cancel or DELETE for hard? Let's use PATCH status
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ status: 'cancelled' })
+            await fetch(`/api/admin/bookings/${id}/verify-kyc`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ action: 'verify' })
             });
             fetchBookings();
-        } catch (e) {
-            console.error(e);
+        } catch (e) { console.error(e); } finally { setProcessingId(null); }
+    };
+
+    const confirmReject = async () => {
+        if (!rejectId || !rejectReason) return;
+        setProcessingId(rejectId);
+        try {
+            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
+            await fetch(`/api/admin/bookings/${rejectId}/verify-kyc`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ action: 'reject', reason: rejectReason })
+            });
+            setRejectId(null);
+            setRejectReason('');
+            fetchBookings();
+        } catch (e) { console.error(e); } finally { setProcessingId(null); }
+    };
+
+    const handleLink = (url: string) => {
+        window.open(url, '_blank');
+    };
+
+    const handleCheckIn = async (id: string) => {
+        if (!confirm("Confirm Check-in? This will activate the stay.")) return;
+        setProcessingId(id);
+        try {
+            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
+            const res = await fetch(`/api/admin/bookings/${id}/check-in`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.error || "Check-in failed");
+            } else {
+                fetchBookings();
+            }
+        } catch (e) { console.error(e); } finally { setProcessingId(null); }
+    };
+
+    const handleCheckOut = async (id: string) => {
+        if (!confirm("Confirm Check-out? This will end the stay.")) return;
+        setProcessingId(id);
+        try {
+            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
+            const res = await fetch(`/api/admin/bookings/${id}/check-out`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.error || "Check-out failed");
+            } else {
+                fetchBookings();
+            }
+        } catch (e) { console.error(e); } finally { setProcessingId(null); }
+    };
+
+    const bookingStatusColor = (status: string) => {
+        switch (status) {
+            case 'confirmed': return 'bg-green-600 hover:bg-green-700';
+            case 'checked_in': return 'bg-blue-600 hover:bg-blue-700';
+            case 'checked_out': return 'bg-slate-500 hover:bg-slate-600';
+            case 'cancelled': return 'bg-red-500 hover:bg-red-600';
+            default: return 'bg-slate-500';
+        }
+    };
+
+    const kycStatusColor = (status: string) => {
+        switch (status) {
+            case 'verified': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+            case 'submitted': return 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
+            case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
+            default: return 'bg-slate-100 text-slate-500 border-slate-200';
         }
     };
 
@@ -174,41 +245,90 @@ export function BookingsTab() {
                 </Dialog>
             </div>
 
+            {/* Rejection Dialog */}
+            <Dialog open={!!rejectId} onOpenChange={(open) => !open && setRejectId(null)}>
+                <DialogContent>
+                    <DialogHeader><DialogTitle>Reject KYC</DialogTitle></DialogHeader>
+                    <div className="space-y-4">
+                        <Label>Reason for rejection</Label>
+                        <Textarea value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Blurry image, Name mismatch" />
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setRejectId(null)}>Cancel</Button>
+                            <Button variant="destructive" onClick={confirmReject} disabled={!rejectReason}>Reject Document</Button>
+                        </DialogFooter>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <div className="grid gap-4">
                 {loading ? <div className="text-center py-8"><Loader2 className="animate-spin mx-auto" /></div> : filtered.map(booking => (
                     <Card key={booking.id} className="overflow-hidden">
                         <CardContent className="p-0">
-                            <div className="flex flex-col md:flex-row items-center p-4 gap-4">
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
+                            <div className="flex flex-col md:flex-row items-start md:items-center p-4 gap-4">
+                                {/* Booking Info */}
+                                <div className="flex-1 min-w-[200px]">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <h3 className="font-bold text-lg">{booking.guestName}</h3>
-                                        <Badge
-                                            variant={booking.status === 'cancelled' ? 'destructive' : 'default'}
-                                            className={
-                                                booking.status === 'confirmed' ? 'bg-green-600 hover:bg-green-700' :
-                                                    booking.status === 'checked_in' ? 'bg-blue-600 hover:bg-blue-700' :
-                                                        booking.status === 'checked_out' ? 'bg-slate-500 hover:bg-slate-600' :
-                                                            booking.status === 'active' ? 'bg-blue-600 hover:bg-blue-700' : // Legacy support
-                                                                ''
-                                            }>
+                                        <Badge className={`${bookingStatusColor(booking.status)}`}>
                                             {booking.status.replace('_', ' ')}
                                         </Badge>
+                                        <Badge variant="outline" className={`${kycStatusColor(booking.kycStatus || 'not_submitted')}`}>
+                                            KYC: {(booking.kycStatus || 'pending').replace('_', ' ')}
+                                        </Badge>
                                     </div>
-                                    <div className="text-sm text-slate-500 flex gap-4">
+                                    <div className="text-sm text-slate-500 flex flex-col md:flex-row gap-2 md:gap-4">
                                         <span>{booking.phone}</span>
                                         <span className="flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> {booking.checkIn} → {booking.checkOut}</span>
                                     </div>
+                                    {/* KYC Documents Links */}
+                                    {booking.kycDocuments && booking.kycDocuments.length > 0 && (
+                                        <div className="flex gap-2 mt-2">
+                                            {booking.kycDocuments.map((doc, i) => (
+                                                <Button key={i} variant="ghost" size="sm" className="h-6 px-2 text-xs text-blue-600 underline" onClick={() => handleLink(doc.url)}>
+                                                    {doc.type} ({doc.fileName.slice(0, 10)}...)
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="text-right font-mono font-medium">
-                                    ₹{booking.totalAmount}
-                                </div>
-                                <div className="flex gap-2">
-                                    {/* Hide Cancel button if checked_out or cancelled */}
-                                    {!['checked_out', 'cancelled'].includes(booking.status) && (
-                                        <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50" onClick={() => handleCancel(booking.id)}>
-                                            Cancel
+
+                                {/* Actions */}
+                                <div className="flex items-center gap-2 flex-wrap justify-end">
+                                    {processingId === booking.id && <Loader2 className="animate-spin text-slate-400" />}
+
+                                    {/* KYC Actions */}
+                                    {['submitted', 'not_submitted', 'rejected'].includes(booking.kycStatus || 'not_submitted') && booking.status === 'confirmed' && (
+                                        <>
+                                            {booking.kycStatus === 'submitted' && (
+                                                <>
+                                                    <Button size="sm" variant="default" className="bg-emerald-600 hover:bg-emerald-700 h-8" onClick={() => handleVerifyKyc(booking.id, 'verify')}>
+                                                        <BadgeCheck className="w-4 h-4 mr-1" /> Verify
+                                                    </Button>
+                                                    <Button size="sm" variant="destructive" className="h-8" onClick={() => handleVerifyKyc(booking.id, 'reject')}>
+                                                        <ShieldAlert className="w-4 h-4" />
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </>
+                                    )}
+
+                                    {/* Check-In Action */}
+                                    {booking.status === 'confirmed' && booking.kycStatus === 'verified' && (
+                                        <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8" onClick={() => handleCheckIn(booking.id)}>
+                                            <LogIn className="w-4 h-4 mr-1" /> Check-in
                                         </Button>
                                     )}
+
+                                    {/* Check-Out Action */}
+                                    {booking.status === 'checked_in' && (
+                                        <Button size="sm" variant="outline" className="text-slate-700 text-xs uppercase tracking-wider font-bold h-8 border-2" onClick={() => handleCheckOut(booking.id)}>
+                                            <LogOut className="w-4 h-4 mr-1" /> Check-out
+                                        </Button>
+                                    )}
+
+                                    <div className="text-sm font-mono font-medium ml-2">
+                                        ₹{booking.totalAmount}
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
