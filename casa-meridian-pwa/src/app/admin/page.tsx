@@ -8,7 +8,9 @@ import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, Check, X } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, LogOut, Check, X, Image as ImageIcon, Sparkles } from 'lucide-react';
+import Image from 'next/image';
 
 // HOTFIX: Prevent build-time static generation errors
 export const dynamic = "force-dynamic";
@@ -19,6 +21,10 @@ export default function AdminDashboard() {
     const [user, setUser] = React.useState<User | null>(null);
     const [loading, setLoading] = React.useState(true);
     const [requests, setRequests] = React.useState<any[]>([]);
+
+    // Visuals Tab State
+    const [generating, setGenerating] = React.useState<string | null>(null);
+    const [assets, setAssets] = React.useState<Record<string, any>>({});
 
     // 1. Auth Listener
     React.useEffect(() => {
@@ -35,7 +41,7 @@ export default function AdminDashboard() {
         }
     }, []);
 
-    // 2. Data Listener (Only if user is logged in & authorized)
+    // 2. Data Listener (Requests) - Only if user is logged in & authorized
     React.useEffect(() => {
         if (!user || !ADMIN_EMAILS.includes(user.email || '')) return;
 
@@ -52,6 +58,21 @@ export default function AdminDashboard() {
             setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         });
         return () => unsubscribe();
+    }, [user]);
+
+    // 3. Data Listener (Assets) - Only if user is logged in & authorized
+    React.useEffect(() => {
+        if (!user || !ADMIN_EMAILS.includes(user.email || '')) return;
+
+        const db = getFirestoreDb();
+        if (!db) return;
+
+        const unsub = onSnapshot(collection(db, 'siteAssets'), (snap) => {
+            const data: Record<string, any> = {};
+            snap.forEach(doc => { data[doc.id] = doc.data(); });
+            setAssets(data);
+        });
+        return () => unsub();
     }, [user]);
 
     const handleLogin = async () => {
@@ -109,6 +130,32 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleGenerate = async (type: string) => {
+        const auth = getFirebaseAuth();
+        if (!auth?.currentUser) return alert("Please log in");
+
+        setGenerating(type);
+        try {
+            const token = await auth.currentUser.getIdToken();
+            const res = await fetch('/api/admin/generate-assets', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ type }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            alert(`${type} generated successfully!`);
+        } catch (error: any) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            setGenerating(null);
+        }
+    };
+
     if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
 
     if (!user || !ADMIN_EMAILS.includes(user.email || '')) {
@@ -123,33 +170,87 @@ export default function AdminDashboard() {
 
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8 pb-24">
-            <div className="flex justify-between items-center mb-8 max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold text-[rgb(var(--meridian-blue))]">Requests</h1>
-                <Button variant="outline" size="icon" onClick={handleLogout}><LogOut className="h-4 w-4" /></Button>
-            </div>
-            <div className="max-w-4xl mx-auto space-y-4">
-                {requests.length === 0 && <p className="text-center text-slate-400">No pending requests.</p>}
-                {requests.map((req) => (
-                    <Card key={req.id} className="border-l-4 border-l-[rgb(var(--meridian-gold))]">
-                        <CardHeader className="flex flex-row justify-between pb-2">
-                            <div><CardTitle>{req.guestName}</CardTitle><p className="text-sm text-slate-500">{req.phone}</p></div>
-                            <Badge variant="secondary">Pending</Badge>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                                <div><p className="text-slate-500">In</p><p>{req.checkIn}</p></div>
-                                <div><p className="text-slate-500">Out</p><p>{req.checkOut}</p></div>
-                                <div><p className="text-slate-500">Nights</p><p>{req.nights}</p></div>
-                                <div><p className="text-slate-500">Total</p><p>₹{req.totalAmount}</p></div>
-                            </div>
-                            {req.notes && <div className="bg-slate-100 p-2 rounded text-sm mb-4 italic">"{req.notes}"</div>}
-                            <div className="flex justify-end gap-3">
-                                <Button variant="outline" className="text-red-600" onClick={() => handleReject(req.id)}><X className="mr-1 h-4 w-4" /> Reject</Button>
-                                <Button className="bg-[rgb(var(--meridian-blue))]" onClick={() => handleApprove(req)}><Check className="mr-1 h-4 w-4" /> Approve</Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+            <div className="max-w-4xl mx-auto">
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-3xl font-bold text-[rgb(var(--meridian-blue))]">Admin Dashboard</h1>
+                    <Button variant="outline" size="icon" onClick={handleLogout}><LogOut className="h-4 w-4" /></Button>
+                </div>
+
+                <Tabs defaultValue="requests" className="space-y-6">
+                    <TabsList>
+                        <TabsTrigger value="requests">Booking Requests</TabsTrigger>
+                        <TabsTrigger value="visuals">Website Visuals</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="requests" className="space-y-4">
+                        {requests.length === 0 && <p className="text-center text-slate-400 py-12">No pending requests.</p>}
+                        {requests.map((req) => (
+                            <Card key={req.id} className="border-l-4 border-l-[rgb(var(--meridian-gold))]">
+                                <CardHeader className="flex flex-row justify-between pb-2">
+                                    <div><CardTitle>{req.guestName}</CardTitle><p className="text-sm text-slate-500">{req.phone}</p></div>
+                                    <Badge variant="secondary">Pending</Badge>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                                        <div><p className="text-slate-500">In</p><p>{req.checkIn}</p></div>
+                                        <div><p className="text-slate-500">Out</p><p>{req.checkOut}</p></div>
+                                        <div><p className="text-slate-500">Nights</p><p>{req.nights}</p></div>
+                                        <div><p className="text-slate-500">Total</p><p>₹{req.totalAmount}</p></div>
+                                    </div>
+                                    {req.notes && <div className="bg-slate-100 p-2 rounded text-sm mb-4 italic">"{req.notes}"</div>}
+                                    <div className="flex justify-end gap-3">
+                                        <Button variant="outline" className="text-red-600" onClick={() => handleReject(req.id)}><X className="mr-1 h-4 w-4" /> Reject</Button>
+                                        <Button className="bg-[rgb(var(--meridian-blue))]" onClick={() => handleApprove(req)}><Check className="mr-1 h-4 w-4" /> Approve</Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </TabsContent>
+
+                    <TabsContent value="visuals">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-amber-500" />
+                                    AI Asset Generator
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {['hero', 'pool', 'bedroom'].map((type) => (
+                                    <div key={type} className="flex flex-col md:flex-row gap-4 items-center justify-between border p-4 rounded-xl">
+                                        <div className="flex items-center gap-4 w-full md:w-auto">
+                                            <div className="relative w-32 h-20 bg-slate-100 rounded-lg overflow-hidden shrink-0 border">
+                                                {assets[type]?.url ? (
+                                                    <Image src={assets[type].url} alt={type} fill className="object-cover" />
+                                                ) : (
+                                                    <div className="flex items-center justify-center h-full text-slate-300">
+                                                        <ImageIcon className="w-6 h-6" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold capitalize">{type} Section</h3>
+                                                <p className="text-xs text-slate-500">
+                                                    {assets[type] ? `Updated: ${new Date(assets[type].updatedAt?.seconds * 1000).toLocaleDateString()}` : 'No custom asset'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <Button
+                                            onClick={() => handleGenerate(type)}
+                                            disabled={generating !== null}
+                                            variant="outline"
+                                            className="w-full md:w-auto border-[rgb(var(--meridian-gold))] text-[rgb(var(--meridian-gold))] hover:bg-amber-50"
+                                        >
+                                            {generating === type ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                            Generate New
+                                        </Button>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
             </div>
         </div>
     );

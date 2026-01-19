@@ -21,4 +21,6 @@ export function getAdminDb() {
     return getFirestore();
 }
 
+export const adminDb = getAdminDb();
+
 

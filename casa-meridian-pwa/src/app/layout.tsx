@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "./globals.css";
 import MobileNav from "@/components/mobile-nav";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 
 const montserrat = Montserrat({
   subsets: ["latin"],
@@ -21,11 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${montserrat.className} bg-gray-50 text-gray-900 antialiased`}>
-        <main className="min-h-screen pb-24">
+        <SiteHeader />
+        <main className="min-h-screen pt-16 pb-24">
           {children}
         </main>
+        <SiteFooter />
         <MobileNav />
       </body>
-    </html>
+    </html >
   );
 }
