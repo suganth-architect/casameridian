@@ -57,29 +57,7 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
         fetchAvailability();
     }, []);
 
-    // Enforce 1-Night Minimum Rule
-    React.useEffect(() => {
-        if (date?.from) {
-            // Case 1: No Check-out selected yet -> Auto select next day
-            if (!date.to) {
-                // We do this via a small timeout to let the user pick if they are fast, 
-                // BUT the requirement says "Auto-set... if check-out is empty".
-                // Actually, typically date range pickers wait for second click.
-                // If we force set it immediately, it might be annoying if they want to pick a later date.
-                // Re-reading definition: "When user selects check-in date: Auto-set check-out to the next day... if check-out is empty" - this implies immediate feedback.
-                // Let's set it.
-                setDate(prev => ({ from: prev!.from!, to: addDays(prev!.from!, 1) }));
-            }
-            // Case 2: Check-out exists but is <= Check-in (Same day or before)
-            else if (date.to && differenceInDays(date.to, date.from) < 1) {
-                setDate(prev => ({ from: prev!.from!, to: addDays(prev!.from!, 1) }));
-            }
-        }
-    }, [date?.from]); // specific dependency to avoid loops? No, if we change `date` it triggers. Need to be careful.
-    // If I setDate inside, it triggers again. 
-    // If logic is stable (to = from + 1), it shouldn't loop infinitely if already correct.
-    // BUT `react-day-picker` might fire weirdly.
-    // Let's try to be safer:
+
 
     const handleDateSelect = (range: DateRange | undefined) => {
         if (!range) {

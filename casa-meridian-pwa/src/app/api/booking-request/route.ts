@@ -7,14 +7,21 @@ import { differenceInDays, parseISO } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
 
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { guestName, phone, email, notes, checkIn, checkOut, pricePerNight } = body;
 
         // 1. Basic Validation
-        if (!guestName || !phone || !checkIn || !checkOut || !pricePerNight) {
+        if (!guestName || !phone || !checkIn || !checkOut) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Validate Price
+        const price = Number(pricePerNight);
+        if (isNaN(price) || price <= 0) {
+            return NextResponse.json({ error: 'Invalid price per night' }, { status: 400 });
         }
 
         // 2. Date Validation (Enforce 1 Night Minimum)
@@ -51,7 +58,7 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
-        const totalAmount = nights * pricePerNight;
+        const totalAmount = nights * price;
 
         // 5. Create Booking Request
         const newRequest = {
@@ -64,7 +71,7 @@ export async function POST(req: NextRequest) {
             checkIn,
             checkOut,
             nights,
-            pricePerNight,
+            pricePerNight: price,
             totalAmount,
             status: 'pending',
             source: 'pwa',
