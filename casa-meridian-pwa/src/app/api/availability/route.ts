@@ -100,6 +100,28 @@ export async function GET() {
         console.error('❌ Error fetching Firestore bookings:', error);
     }
 
+    // 3. Fetch Firestore Manual Blocked Dates (blockedDates)
+    try {
+        const blockedDatesSnapshot = await getAdminDb()
+            .collection('blockedDates')
+            .get();
+
+        const manualBlocks = blockedDatesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            // Manual blocks are "Inclusive Nightly Blocks" (Date -> Date)
+            // e.g. Block Jan 1 to Jan 3 means Nights of 1st, 2nd, 3rd are unavailable.
+            return {
+                from: data.startDate,
+                to: data.endDate
+            };
+        });
+
+        allBlockedDates = [...allBlockedDates, ...manualBlocks];
+
+    } catch (error) {
+        console.error('❌ Error fetching Firestore blocked dates:', error);
+    }
+
     return NextResponse.json(
         { blocked: allBlockedDates },
         {
