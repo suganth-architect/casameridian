@@ -5,7 +5,8 @@ import { CalendarIcon, Loader2, CheckCircle2 } from 'lucide-react';
 import { differenceInDays, format, parseISO, isWithinInterval } from 'date-fns';
 import { DateRange } from 'react-day-picker';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; // Client SDK
+// Import Getter
+import { getFirestoreDb } from '@/lib/firebase';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,6 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
         fetchAvailability();
     }, []);
 
-    // Validation: Check for overlap whenever date changes
     React.useEffect(() => {
         if (date?.from && date?.to && blockedRanges.length > 0) {
             const isOverlapping = blockedRanges.some(range => {
@@ -80,6 +80,13 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
     const totalPrice = totalNights * pricePerNight;
 
     const handleSubmit = async () => {
+        const db = getFirestoreDb(); // Lazy Init Here
+        if (!db) {
+            console.error("Firebase DB not ready");
+            alert("System loading... please try again.");
+            return;
+        }
+
         if (!date?.from || !date?.to || !guestName || !phone || overlapError) return;
 
         setSubmitting(true);
@@ -103,8 +110,6 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
 
             setLastRequest(currentRequest);
             setSuccess(true);
-
-            // Reset
             setDate(undefined);
             setGuestName('');
             setPhone('');
@@ -122,21 +127,10 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
         return (
             <Card className="w-full max-w-md mx-auto shadow-lg border-green-100 bg-green-50/50">
                 <CardContent className="pt-6 text-center space-y-4">
-                    <div className="flex justify-center">
-                        <CheckCircle2 className="h-16 w-16 text-green-600" />
-                    </div>
+                    <div className="flex justify-center"><CheckCircle2 className="h-16 w-16 text-green-600" /></div>
                     <h2 className="text-2xl font-bold text-green-800">Request Received!</h2>
-                    <p className="text-green-700">
-                        Thank you, {lastRequest.name}. We have received your request for {lastRequest.nights} nights.
-                        We will contact you shortly.
-                    </p>
-                    <Button
-                        variant="outline"
-                        className="mt-4 border-green-600 text-green-700 hover:bg-green-100"
-                        onClick={() => setSuccess(false)}
-                    >
-                        Book Another Stay
-                    </Button>
+                    <p className="text-green-700">Thank you, {lastRequest.name}. We will contact you shortly.</p>
+                    <Button variant="outline" className="mt-4 border-green-600 text-green-700 hover:bg-green-100" onClick={() => setSuccess(false)}>Book Another Stay</Button>
                 </CardContent>
             </Card>
         );
@@ -145,35 +139,19 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
     return (
         <Card className="w-full max-w-md mx-auto shadow-lg border-none bg-white/90 backdrop-blur-sm">
             <CardHeader>
-                <CardTitle className="text-2xl font-bold text-center font-montserrat text-[rgb(var(--meridian-blue))]">
-                    Reserve Your Stay
-                </CardTitle>
+                <CardTitle className="text-2xl font-bold text-center font-montserrat text-[rgb(var(--meridian-blue))]">Reserve Your Stay</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid gap-2">
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button
-                                variant={'outline'}
-                                className={cn('w-full justify-start text-left font-normal h-12 rounded-xl border-slate-200', !date && 'text-muted-foreground')}
-                            >
+                            <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal h-12 rounded-xl border-slate-200', !date && 'text-muted-foreground')}>
                                 <CalendarIcon className="mr-2 h-4 w-4 text-[rgb(var(--meridian-gold))]" />
                                 {date?.from ? (date.to ? `${format(date.from, 'LLL dd')} - ${format(date.to, 'LLL dd')}` : format(date.from, 'LLL dd')) : <span>Check Availability</span>}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="center">
-                            {!loading && (
-                                <Calendar
-                                    initialFocus
-                                    mode="range"
-                                    defaultMonth={date?.from}
-                                    selected={date}
-                                    onSelect={setDate}
-                                    numberOfMonths={1}
-                                    disabled={[{ before: new Date() }, ...blockedRanges]}
-                                    min={2}
-                                />
-                            )}
+                            {!loading && <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={1} disabled={[{ before: new Date() }, ...blockedRanges]} min={2} />}
                         </PopoverContent>
                     </Popover>
                     {overlapError && <p className="text-xs text-red-500 text-center font-medium">Selected dates overlap with an existing booking.</p>}
@@ -192,11 +170,7 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
                     </div>
                 )}
 
-                <Button
-                    className="w-full h-12 rounded-full text-lg shadow-md bg-[rgb(var(--meridian-gold))]"
-                    disabled={totalNights < 1 || !guestName || !phone || submitting || overlapError}
-                    onClick={handleSubmit}
-                >
+                <Button className="w-full h-12 rounded-full text-lg shadow-md bg-[rgb(var(--meridian-gold))]" disabled={totalNights < 1 || !guestName || !phone || submitting || overlapError} onClick={handleSubmit}>
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     {totalNights > 0 ? 'Submit Request' : 'Select Dates'}
                 </Button>
