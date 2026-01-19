@@ -32,6 +32,22 @@ export function validateDateRange(checkIn: string, checkOut: string): void {
 }
 
 /**
+ * Validates startDate <= endDate and proper date format.
+ * Allows startDate === endDate (inclusive range).
+ */
+export function validateBlockRange(startDate: string, endDate: string): void {
+    const regEx = /^\d{4}-\d{2}-\d{2}$/;
+    if (!startDate.match(regEx) || !endDate.match(regEx)) {
+        throw new Error('Invalid date format. Use YYYY-MM-DD');
+    }
+    if (startDate > endDate) {
+        throw new Error('End date must be at or after start date');
+    }
+}
+
+
+
+/**
  * Helper to convert an inclusive end date (e.g. from a calendar block)
  * to an exclusive check-out date for availability checks.
  * Usage: blockEndInclusiveToExclusive("2026-02-05") -> "2026-02-06"

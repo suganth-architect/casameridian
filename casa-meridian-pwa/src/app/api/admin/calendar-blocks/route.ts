@@ -4,7 +4,7 @@ import { verifyAdmin } from '@/lib/admin-auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { FieldValue } from "firebase-admin/firestore";
 
-import { checkAvailability, validateDateRange, blockEndInclusiveToExclusive } from '@/lib/availability';
+import { checkAvailability, validateDateRange, blockEndInclusiveToExclusive, validateBlockRange } from '@/lib/availability';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
         // 1. Validate Dates
         try {
-            validateDateRange(startDate, endDate);
+            validateBlockRange(startDate, endDate);
         } catch (e: any) {
             return NextResponse.json({ error: e.message }, { status: 400 });
         }
