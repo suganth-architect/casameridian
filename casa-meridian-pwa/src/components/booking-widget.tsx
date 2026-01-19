@@ -7,6 +7,7 @@ import { DateRange } from 'react-day-picker';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 // Import Getter
 import { getFirestoreDb } from '@/lib/firebase';
+import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
 
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -95,7 +96,9 @@ export function BookingWidget({ pricePerNight }: BookingWidgetProps) {
 
             await addDoc(collection(db, 'bookingRequests'), {
                 guestName,
-                phone,
+                phone, // phoneRaw
+                phoneLocal: normalizePhoneDigits(phone), // Renamed from phoneDigits
+                phoneE164: normalizePhoneE164(phone),
                 email,
                 notes,
                 checkIn: format(date.from, 'yyyy-MM-dd'),

@@ -3,6 +3,7 @@
 import * as React from 'react';
 // Import Getters instead of instances
 import { getFirebaseAuth, getFirestoreDb, getGoogleProvider } from '@/lib/firebase';
+import { normalizePhoneDigits, normalizePhoneE164 } from '@/lib/phone';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
@@ -100,7 +101,9 @@ export default function AdminDashboard() {
             // 1. Create Confirmed Booking
             await addDoc(collection(db, 'bookings'), {
                 guestName: req.guestName,
-                phone: req.phone,
+                phone: req.phone, // Raw requests phone
+                phoneLocal: normalizePhoneDigits(req.phone), // Normalized 10 digit
+                phoneE164: normalizePhoneE164(req.phone), // E.164
                 email: req.email || '',
                 checkIn: req.checkIn,
                 checkOut: req.checkOut,
@@ -109,6 +112,7 @@ export default function AdminDashboard() {
                 pricePerNight: req.pricePerNight,
                 requestId: req.id,
                 status: 'confirmed',
+                createdAt: serverTimestamp(),
                 approvedAt: serverTimestamp(),
             });
 

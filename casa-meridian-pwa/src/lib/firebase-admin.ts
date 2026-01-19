@@ -1,5 +1,6 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 // Handle Vercel environment variable newlines for private keys
 const privateKey = process.env.FIREBASE_PRIVATE_KEY
@@ -22,5 +23,16 @@ export function getAdminDb() {
 }
 
 export const adminDb = getAdminDb();
+
+export function getAdminAuth() {
+    if (getApps().length === 0) {
+        initializeApp({
+            credential: cert(serviceAccount),
+        });
+    }
+    return getAuth();
+}
+
+export const adminAuth = getAdminAuth();
 
 
