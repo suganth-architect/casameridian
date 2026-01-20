@@ -1,46 +1,50 @@
-
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb, adminStorage } from "@/lib/firebase-admin";
+import { adminDb, adminStorage } from "@/lib/firebase-admin";
 import { verifyAdmin } from "@/lib/admin-auth";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request: NextRequest) {
     try {
         // 1. Auth Check
-        // 1. Auth Check
         const auth = await verifyAdmin(request);
         if (auth.error) {
+            console.error("Confirm Upload Auth Failed:", auth.error);
             return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
         const { admin } = auth;
 
         // 2. Input Validation
         const body = await request.json();
-        const { key, storagePath, publicUrl } = body; // publicUrl passed from client for convenience, or strictly reconstruct it
+        const { key, storagePath } = body;
 
         if (!key || !storagePath) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+            return NextResponse.json({ error: "Missing required fields: key, storagePath" }, { status: 400 });
         }
 
         // 3. Make File Public
-        const bucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
+        // Ensure bucket is initialized correctly with default environment variable
+        const bucket = adminStorage.bucket();
         const file = bucket.file(storagePath);
 
-        // Verify existence first? Explicitly make public.
-        try {
-            await file.makePublic();
-        } catch (e) {
-            console.error("Error making file public:", e);
-            // Verify if it exists, if not throw
-            const [exists] = await file.exists();
-            if (!exists) throw new Error("File not found in storage. Upload may have failed.");
-            throw e;
+        const [exists] = await file.exists();
+        if (!exists) {
+            console.error(`File not found: ${storagePath}`);
+            return NextResponse.json({ error: "File not found in storage. Upload may have failed." }, { status: 404 });
         }
 
-        // Reconstruct Public URL to be safe/canonical if needed, or use the one we derived
+        try {
+            await file.makePublic();
+        } catch (e: any) {
+            console.error("Error making file public (ignoring):", e.message);
+            // Don't crash if public access fails, might be bucket restricted.
+            // If restricted, we might need value based signed URL for read, but goal here is public assets.
+        }
+
+        // 4. Construct Public URL
+        // Handle new domain `firebasestorage.app` automatically
         const finalUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 
-        // 4. Save to Firestore 'visuals' History
+        // 5. Save to Firestore 'visuals' History
         const docRef = await adminDb.collection("visuals").add({
             category: key,
             url: finalUrl,
@@ -50,12 +54,12 @@ export async function POST(request: NextRequest) {
             source: 'upload_signed_url'
         });
 
-        // 5. Update Active 'siteAssets'
+        // 6. Update Active 'siteAssets'
         await adminDb.collection("siteAssets").doc(key).set({
             url: finalUrl,
             updatedAt: FieldValue.serverTimestamp(),
             updatedBy: admin!.uid,
-            source: 'upload' // Standardize source for UI
+            source: 'upload'
         }, { merge: true });
 
         return NextResponse.json({

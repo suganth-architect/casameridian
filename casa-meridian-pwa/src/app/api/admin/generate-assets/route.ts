@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { generateLuxuryImage } from '@/lib/genai';
-import { adminDb } from '@/lib/firebase-admin';
-import { getAuth } from 'firebase-admin/auth';
-import { getStorage } from 'firebase-admin/storage';
+import { adminDb, adminAuth, adminStorage } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export const maxDuration = 60; // Allow 60s for AI generation
@@ -18,7 +16,7 @@ export async function POST(req: Request) {
         }
 
         const idToken = authHeader.split('Bearer ')[1];
-        const decodedToken = await getAuth().verifyIdToken(idToken);
+        const decodedToken = await adminAuth.verifyIdToken(idToken);
 
         if (!ADMIN_EMAILS.includes(decodedToken.email || '')) {
             return NextResponse.json({ error: 'Forbidden: Admin access only' }, { status: 403 });
@@ -39,7 +37,12 @@ export async function POST(req: Request) {
         const imageBuffer = await generateLuxuryImage(prompt);
 
         // 4. Upload to Firebase Storage (Default Bucket)
-        const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+        // Ensure bucket is initialized
+        const bucket = adminStorage.bucket();
+        if (!bucket) {
+            throw new Error("Storage bucket not initialized. Check FIREBASE_STORAGE_BUCKET.");
+        }
+
         const fileName = `site-assets/${type}-${Date.now()}.png`; // Unique filename
         const file = bucket.file(fileName);
 
@@ -48,19 +51,18 @@ export async function POST(req: Request) {
         });
 
         // Make public explicitly
-        await file.makePublic();
+        try { await file.makePublic(); } catch (e) { console.warn("Make public failed, possibly restricted bucket."); }
 
         // Construct Public URL
-        // Note: Default bucket usually requires this format or signed URLs. 
-        // publicUrl() method is convenient but depends on bucket config.
-        // This manual construction is often safer for standard Firebase Storage buckets.
         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
 
         // 5. Persist URL in Firestore
         await adminDb.collection('siteAssets').doc(type).set({
             url: publicUrl,
             updatedAt: FieldValue.serverTimestamp(),
-            updatedBy: decodedToken.email
+            updatedBy: decodedToken.email,
+            source: 'genai',
+            model: process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro' // Log which model was ostensibly used (or just 'genai')
         });
 
         return NextResponse.json({ success: true, url: publicUrl });

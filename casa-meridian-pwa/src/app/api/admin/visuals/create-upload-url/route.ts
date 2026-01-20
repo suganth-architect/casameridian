@@ -1,14 +1,13 @@
-
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminStorage } from "@/lib/firebase-admin";
+import { adminStorage } from "@/lib/firebase-admin";
 import { verifyAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
     try {
         // 1. Auth Check
-        // 1. Auth Check
         const auth = await verifyAdmin(request);
         if (auth.error) {
+            console.error("Create Upload URL Auth Failed:", auth.error);
             return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
 
@@ -17,19 +16,22 @@ export async function POST(request: NextRequest) {
         const { key, filename, contentType } = body;
 
         if (!key || !filename || !contentType) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+            return NextResponse.json({ error: "Missing required fields: key, filename, contentType" }, { status: 400 });
         }
 
         // 3. Generate Path
         // siteVisuals/{key}/{timestamp}-{filename}
         const timestamp = Date.now();
-        const cleanFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '');
+        // Sanitize: allow alphanumeric, dots, dashes, underscores
+        const cleanFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, '_');
         const storagePath = `visuals/${key}/${timestamp}-${cleanFilename}`;
 
-        const bucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
+        // 4. Get Default Bucket
+        // Note: bucket() without arguments uses the default app's bucket option
+        const bucket = adminStorage.bucket();
         const file = bucket.file(storagePath);
 
-        // 4. Generate Signed URL
+        // 5. Generate Signed URL
         const [uploadUrl] = await file.getSignedUrl({
             action: 'write',
             version: 'v4',
@@ -37,10 +39,9 @@ export async function POST(request: NextRequest) {
             contentType: contentType,
         });
 
-        // 5. Construct Public URL (assuming standard firebase storage or google cloud public access)
-        // Note: The file isn't public yet, confirm-upload should make it public or we make it public (if granular) or bucket is public.
-        // Usually we make it public after upload. BUT Signed URL is for write. 
-        // We will return the storagePath so the client can send it back to confirm-upload.
+        // 6. Construct Public URL
+        // Used for confirmation, but confirming the path is better.
+        // We handle new domain `firebasestorage.app` automatically by getting bucket name.
         const publicUrl = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
 
         return NextResponse.json({

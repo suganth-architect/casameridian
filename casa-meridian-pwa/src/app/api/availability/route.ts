@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { subDays, format, isValid, parseISO, parse } from 'date-fns';
-import { getAdminDb } from '@/lib/firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,7 +77,7 @@ export async function GET() {
 
     // 2. Fetch Firestore Confirmed Bookings (Admin SDK)
     try {
-        const bookingsSnapshot = await getAdminDb()
+        const bookingsSnapshot = await adminDb
             .collection('bookings')
             .where('status', '==', 'confirmed')
             .get();
@@ -102,7 +102,7 @@ export async function GET() {
 
     // 3. Fetch Firestore Manual Blocked Dates (blockedDates)
     try {
-        const blockedDatesSnapshot = await getAdminDb()
+        const blockedDatesSnapshot = await adminDb
             .collection('blockedDates')
             .get();
 
