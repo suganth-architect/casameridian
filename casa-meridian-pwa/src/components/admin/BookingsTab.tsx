@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { getFirebaseAuth } from '@/lib/firebase';
+import { adminFetch } from '@/lib/admin-api';
 import { Booking } from '@/lib/types';
 import { BookingDetailDrawer } from './booking-detail-drawer';
 
@@ -38,12 +39,7 @@ export function BookingsTab() {
 
     const fetchBookings = async () => {
         try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            if (!token) return;
-            const res = await fetch('/api/admin/bookings', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
+            const data = await adminFetch('/api/admin/bookings');
             if (data.bookings) setBookings(data.bookings);
         } catch (error) {
             console.error(error);
@@ -60,13 +56,9 @@ export function BookingsTab() {
         if (!formData.guestName || !formData.phone || !formData.checkIn || !formData.checkOut) return;
         setSubmitting(true);
         try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            const res = await fetch('/api/admin/bookings', {
+            await adminFetch('/api/admin/bookings', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     guestName: formData.guestName,
                     phone: formData.phone,
@@ -78,15 +70,12 @@ export function BookingsTab() {
                 })
             });
 
-            if (res.ok) {
-                setIsAddOpen(false);
-                setFormData({ guestName: '', phone: '', email: '', checkIn: undefined, checkOut: undefined, amount: '', status: 'confirmed' });
-                fetchBookings();
-            } else {
-                alert("Failed to create booking");
-            }
-        } catch (e) {
+            setIsAddOpen(false);
+            setFormData({ guestName: '', phone: '', email: '', checkIn: undefined, checkOut: undefined, amount: '', status: 'confirmed' });
+            fetchBookings();
+        } catch (e: any) {
             console.error(e);
+            alert(e.message || "Failed to create booking");
         } finally {
             setSubmitting(false);
         }

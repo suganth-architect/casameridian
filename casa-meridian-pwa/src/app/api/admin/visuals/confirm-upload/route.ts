@@ -1,16 +1,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb, adminStorage } from "@/lib/firebase-admin";
+import { verifyAdmin } from "@/lib/admin-auth";
 import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request: NextRequest) {
     try {
         // 1. Auth Check
-        const token = request.cookies.get("firebaseAuthToken")?.value;
-        if (!token) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        // 1. Auth Check
+        const auth = await verifyAdmin(request);
+        if (auth.error) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
-        const decodedToken = await adminAuth.verifyIdToken(token);
+        const { admin } = auth;
 
         // 2. Input Validation
         const body = await request.json();
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
             category: key,
             url: finalUrl,
             storagePath,
-            uploadedBy: decodedToken.uid,
+            uploadedBy: admin!.uid,
             createdAt: FieldValue.serverTimestamp(),
             source: 'upload_signed_url'
         });
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
         await adminDb.collection("siteAssets").doc(key).set({
             url: finalUrl,
             updatedAt: FieldValue.serverTimestamp(),
-            updatedBy: decodedToken.uid,
+            updatedBy: admin!.uid,
             source: 'upload' // Standardize source for UI
         }, { merge: true });
 

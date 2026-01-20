@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { adminFetch } from '@/lib/admin-api';
 import { Booking } from '@/lib/types';
 import { BookingDetailDrawer } from './booking-detail-drawer';
 
@@ -23,12 +24,7 @@ export function CheckinTab() {
     const fetchBookings = async () => {
         setLoading(true);
         try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            if (!token) return;
-            const res = await fetch('/api/admin/bookings', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
+            const data = await adminFetch('/api/admin/bookings');
             if (data.bookings) {
                 // Filter relevant bookings for check-in/out
                 const relevant = data.bookings.filter((b: Booking) =>
@@ -36,8 +32,9 @@ export function CheckinTab() {
                 );
                 setBookings(relevant);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            if (error.status === 401) alert("Session expired.");
         } finally {
             setLoading(false);
         }
@@ -52,22 +49,13 @@ export function CheckinTab() {
         if (!confirm(`Are you sure you want to ${action}?`)) return;
         setProcessing(bookingId);
         try {
-            const auth = getFirebaseAuth();
-            if (!auth || !auth.currentUser) return;
-            const token = await auth.currentUser.getIdToken();
-            const res = await fetch(`/api/admin/bookings/${bookingId}/${action}`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+            await adminFetch(`/api/admin/bookings/${bookingId}/${action}`, {
+                method: 'POST'
             });
-            if (res.ok) {
-                fetchBookings();
-            } else {
-                const err = await res.json();
-                alert(err.error || "Action failed");
-            }
-        } catch (e) {
+            fetchBookings();
+        } catch (e: any) {
             console.error(e);
-            alert("Error");
+            alert(e.message || "Action failed");
         } finally {
             setProcessing(null);
         }

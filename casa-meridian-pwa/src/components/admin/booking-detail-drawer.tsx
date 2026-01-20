@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getFirebaseAuth } from '@/lib/firebase';
+import { adminFetch } from '@/lib/admin-api';
 import { Booking, KycDocument } from '@/lib/types';
 
 interface BookingDetailDrawerProps {
@@ -58,31 +59,22 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
     if (!booking) return null;
 
     // --- Actions ---
+    // --- Actions ---
     const callApi = async (url: string, method: 'POST' | 'PATCH', body?: any) => {
         setProcessing(true);
         try {
-            const auth = getFirebaseAuth();
-            if (!auth || !auth.currentUser) {
-                alert("You are not authenticated.");
-                setProcessing(false);
-                return;
-            }
-            const token = await auth.currentUser.getIdToken();
-            const res = await fetch(url, {
+            await adminFetch(url, {
                 method,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: body ? JSON.stringify(body) : undefined
             });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.error || "Operation failed"); // Ideally toast
-            } else {
-                onUpdate();
-                if (url.includes('reject')) setRejectDialogOpen(false);
-            }
+            onUpdate();
+            if (url.includes('reject')) setRejectDialogOpen(false);
         } catch (e: any) {
             console.error(e);
-            alert(e.message);
+            const msg = e.message || "Operation failed";
+            if (e.status === 401) alert("Session expired. Please refresh.");
+            else alert(msg);
         } finally {
             setProcessing(false);
         }

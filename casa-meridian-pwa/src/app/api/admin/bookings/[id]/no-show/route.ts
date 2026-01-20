@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { verifyAdmin } from "@/lib/admin-auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { Booking } from "@/lib/types";
 import { parseISO, isBefore, startOfDay } from "date-fns";
@@ -10,11 +11,12 @@ export async function POST(
 ) {
     try {
         // 1. Admin Auth
-        const token = request.cookies.get("firebaseAuthToken")?.value;
-        if (!token) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        // 1. Admin Auth
+        const auth = await verifyAdmin(request);
+        if (auth.error) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
-        const decodedToken = await adminAuth.verifyIdToken(token);
+        const { admin } = auth;
 
         const bookingId = params.id;
         const body = await request.json();
@@ -61,11 +63,11 @@ export async function POST(
                 status: 'cancelled',
                 noShow: true,
                 noShowAt: FieldValue.serverTimestamp(),
-                noShowMarkedBy: decodedToken.uid,
+                noShowMarkedBy: admin!.uid,
                 cancellationType: 'no_show',
                 cancellationReason: reason || 'Guest did not arrive',
                 cancelledAt: FieldValue.serverTimestamp(),
-                cancelledBy: decodedToken.uid,
+                cancelledBy: admin!.uid,
                 updatedAt: FieldValue.serverTimestamp()
             });
 

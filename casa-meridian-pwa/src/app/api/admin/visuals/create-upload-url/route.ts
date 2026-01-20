@@ -1,15 +1,16 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminStorage } from "@/lib/firebase-admin";
+import { verifyAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest) {
     try {
         // 1. Auth Check
-        const token = request.cookies.get("firebaseAuthToken")?.value;
-        if (!token) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        // 1. Auth Check
+        const auth = await verifyAdmin(request);
+        if (auth.error) {
+            return NextResponse.json({ error: auth.error }, { status: auth.status });
         }
-        await adminAuth.verifyIdToken(token);
 
         // 2. Input Validation
         const body = await request.json();

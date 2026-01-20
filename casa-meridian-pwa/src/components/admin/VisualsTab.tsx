@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getFirebaseAuth, getFirestoreDb } from '@/lib/firebase';
+import { adminFetch } from '@/lib/admin-api';
 import { collection, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 
@@ -26,22 +27,19 @@ export function VisualsTab() {
     }, []);
 
     const handleGenerate = async (type: string) => {
-        const auth = getFirebaseAuth();
-        if (!auth?.currentUser) return;
         if (!confirm(`Regenerate ${type} image using AI? This will replace the current image.`)) return;
 
         setGenerating(type);
         try {
-            const token = await auth.currentUser.getIdToken();
-            const res = await fetch('/api/admin/generate-assets', {
+            await adminFetch('/api/admin/generate-assets', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type }),
             });
-            if (res.ok) alert("Generated!");
-            else alert("Error generating");
-        } catch (e) {
+            alert("Generated!");
+        } catch (e: any) {
             console.error(e);
+            alert(e.message || "Error generating");
         } finally {
             setGenerating(null);
         }
@@ -51,19 +49,13 @@ export function VisualsTab() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const auth = getFirebaseAuth();
-        if (!auth?.currentUser) return;
-
         setUploading(type);
         try {
-            const token = await auth.currentUser.getIdToken();
-
             // 1. Get Signed URL
-            const urlRes = await fetch('/api/admin/visuals/create-upload-url', {
+            const { uploadUrl, storagePath, publicUrl } = await adminFetch('/api/admin/visuals/create-upload-url', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     key: type,
@@ -72,10 +64,7 @@ export function VisualsTab() {
                 })
             });
 
-            if (!urlRes.ok) throw new Error("Failed to get upload URL");
-            const { uploadUrl, storagePath, publicUrl } = await urlRes.json();
-
-            // 2. Upload to Storage (PUT)
+            // 2. Upload to Storage (PUT) - DIRECT FETCH (Not Admin API)
             const uploadRes = await fetch(uploadUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': file.type },
@@ -85,16 +74,13 @@ export function VisualsTab() {
             if (!uploadRes.ok) throw new Error("Storage upload failed");
 
             // 3. Confirm Upload
-            const confirmRes = await fetch('/api/admin/visuals/confirm-upload', {
+            await adminFetch('/api/admin/visuals/confirm-upload', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ key: type, storagePath, publicUrl })
             });
-
-            if (!confirmRes.ok) throw new Error("Failed to confirm upload");
 
             alert("Uploaded successfully!");
 
