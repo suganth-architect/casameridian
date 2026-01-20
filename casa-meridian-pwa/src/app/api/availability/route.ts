@@ -79,7 +79,7 @@ export async function GET() {
     try {
         const bookingsSnapshot = await adminDb
             .collection('bookings')
-            .where('status', '==', 'confirmed')
+            .where('status', 'in', ['confirmed', 'checked_in', 'active'])
             .get();
 
         const firestoreBlocked = bookingsSnapshot.docs.map(doc => {

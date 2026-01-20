@@ -1,6 +1,6 @@
-
 import { adminAuth, adminDb } from './firebase-admin';
 import { NextRequest, NextResponse } from 'next/server';
+import { FieldValue } from 'firebase-admin/firestore';
 
 export interface AdminProfile {
     uid: string;
@@ -45,9 +45,9 @@ export async function verifyAdmin(req: NextRequest, requiredRole: AdminRole = 's
                 // Auto-seed
                 await adminDb.collection('admins').doc(decodedToken.uid).set({
                     ...seedProfile,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                    lastLoginAt: new Date()
+                    createdAt: FieldValue.serverTimestamp(),
+                    updatedAt: FieldValue.serverTimestamp(),
+                    lastLoginAt: FieldValue.serverTimestamp()
                 });
                 return { admin: seedProfile };
             }

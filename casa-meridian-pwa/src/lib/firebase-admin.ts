@@ -17,6 +17,13 @@ if (!process.env.FIREBASE_PRIVATE_KEY) {
 // We warn if missing but don't crash unless storage is used.
 if (!process.env.FIREBASE_STORAGE_BUCKET) {
     console.warn('WARN: FIREBASE_STORAGE_BUCKET is not defined. Storage operations may fail.');
+} else if (process.env.FIREBASE_STORAGE_BUCKET.includes("firebasestorage.app")) {
+    // CRITICAL: The Admin SDK "storageBucket" option expects the BUCKET NAME (e.g. "project-id.appspot.com"),
+    // NOT the download URL domain "firebasestorage.app". This is a common misconfiguration.
+    throw new Error(
+        `Invalid FIREBASE_STORAGE_BUCKET: "${process.env.FIREBASE_STORAGE_BUCKET}". ` +
+        `It appears to be a domain. Please use the bucket name (e.g. "<project-id>.appspot.com").`
+    );
 }
 
 // 2. Handle Vercel environment variable newlines for private keys

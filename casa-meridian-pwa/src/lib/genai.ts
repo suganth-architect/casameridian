@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 const apiKey = process.env.GOOG_API_KEY;
 const client = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-export async function generateLuxuryImage(promptText: string): Promise<Buffer> {
+export async function generateLuxuryImage(promptText: string): Promise<{ buffer: Buffer, modelUsed: string }> {
     if (!client) throw new Error("Missing GOOG_API_KEY environment variable");
 
     const fullPrompt =
@@ -17,6 +17,7 @@ export async function generateLuxuryImage(promptText: string): Promise<Buffer> {
 
     let response;
     let lastError;
+    let modelUsed = "";
 
     for (const model of models) {
         try {
@@ -32,7 +33,10 @@ export async function generateLuxuryImage(promptText: string): Promise<Buffer> {
             });
 
             // If we successfully got a response, break loop
-            if (response) break;
+            if (response) {
+                modelUsed = model;
+                break;
+            }
 
         } catch (error: any) {
             console.warn(`Model ${model} failed:`, error.message);
@@ -65,5 +69,8 @@ export async function generateLuxuryImage(promptText: string): Promise<Buffer> {
         throw new Error("GenAI returned empty imageBytes");
     }
 
-    return Buffer.from(imageBytes, "base64");
+    return {
+        buffer: Buffer.from(imageBytes, "base64"),
+        modelUsed
+    };
 }

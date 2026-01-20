@@ -34,7 +34,7 @@ export async function POST(req: Request) {
         else return NextResponse.json({ error: "Invalid asset type" }, { status: 400 });
 
         // 3. Generate Image
-        const imageBuffer = await generateLuxuryImage(prompt);
+        const { buffer, modelUsed } = await generateLuxuryImage(prompt);
 
         // 4. Upload to Firebase Storage (Default Bucket)
         // Ensure bucket is initialized
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
         const fileName = `site-assets/${type}-${Date.now()}.png`; // Unique filename
         const file = bucket.file(fileName);
 
-        await file.save(imageBuffer, {
+        await file.save(buffer, {
             metadata: { contentType: 'image/png' },
         });
 
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
             updatedAt: FieldValue.serverTimestamp(),
             updatedBy: decodedToken.email,
             source: 'genai',
-            model: process.env.GEMINI_IMAGE_MODEL || 'gemini-3-pro' // Log which model was ostensibly used (or just 'genai')
+            model: modelUsed // Log which model was actually used
         });
 
         return NextResponse.json({ success: true, url: publicUrl });
