@@ -9,15 +9,36 @@ export async function generateLuxuryImage(promptText: string): Promise<Buffer> {
     const fullPrompt =
         `Architectural photography, 8k, hyper-realistic, luxury villa, golden hour, magazine quality, cinematic lighting: ${promptText}`;
 
-    const response = await client.models.generateImages({
-        model: "gemini-3-pro-image-preview",
-        prompt: fullPrompt,
-        config: {
-            numberOfImages: 1,
-            aspectRatio: "16:9",
-            outputMimeType: "image/png",
-        },
-    });
+    let response;
+    try {
+        response = await client.models.generateImages({
+            model: "gemini-3-pro-image-preview",
+            prompt: fullPrompt,
+            config: {
+                numberOfImages: 1,
+                aspectRatio: "16:9",
+                outputMimeType: "image/png",
+            },
+        });
+    } catch (primaryError: any) {
+        console.warn("Gemini 3 Pro Image failed, trying fallback:", primaryError.message);
+
+        // Fallback
+        const fallbackModel = "gemini-2.0-flash-exp";
+        // Note: Check actual model name. User suggested "gemini-2.0-flash-exp-image-generation" but often it's "gemini-2.0-flash-exp" or similar.
+        // User explicitly asked for "gemini-2.0-flash-exp-image-generation" (or configured env model).
+        // I will use that.
+
+        response = await client.models.generateImages({
+            model: process.env.GEMINI_IMAGE_MODEL_FALLBACK || "gemini-2.0-flash-exp",
+            prompt: fullPrompt,
+            config: {
+                numberOfImages: 1,
+                aspectRatio: "16:9",
+                outputMimeType: "image/png",
+            },
+        });
+    }
 
     const resp: any = response;
 

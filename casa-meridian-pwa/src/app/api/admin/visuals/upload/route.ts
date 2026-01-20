@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         const filename = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '')}`; // Sanitize
         const bucketPath = `visuals/${category}/${filename}`;
 
-        const bucket = adminStorage.bucket();
+        const bucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
         const storageFile = bucket.file(bucketPath);
 
         await storageFile.save(buffer, {

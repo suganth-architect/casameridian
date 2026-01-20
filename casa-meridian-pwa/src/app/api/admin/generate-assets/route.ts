@@ -39,7 +39,7 @@ export async function POST(req: Request) {
         const imageBuffer = await generateLuxuryImage(prompt);
 
         // 4. Upload to Firebase Storage (Default Bucket)
-        const bucket = getStorage().bucket();
+        const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
         const fileName = `site-assets/${type}-${Date.now()}.png`; // Unique filename
         const file = bucket.file(fileName);
 

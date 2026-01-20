@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. Make File Public
-        const bucket = adminStorage.bucket();
+        const bucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
         const file = bucket.file(storagePath);
 
         // Verify existence first? Explicitly make public.

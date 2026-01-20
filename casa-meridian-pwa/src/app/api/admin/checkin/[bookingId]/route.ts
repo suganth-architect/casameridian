@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ boo
         const filename = `${type}_${Date.now()}.${file.name.split('.').pop()}`;
         const path = `checkin/${bookingId}/${filename}`;
 
-        const bucket = getStorage().bucket();
+        const bucket = getStorage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
         const fileRef = bucket.file(path);
 
         await fileRef.save(buffer, {

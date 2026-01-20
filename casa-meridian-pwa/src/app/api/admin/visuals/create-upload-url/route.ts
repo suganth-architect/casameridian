@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
         const cleanFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '');
         const storagePath = `visuals/${key}/${timestamp}-${cleanFilename}`;
 
-        const bucket = adminStorage.bucket();
+        const bucket = adminStorage.bucket(process.env.FIREBASE_STORAGE_BUCKET);
         const file = bucket.file(storagePath);
 
         // 4. Generate Signed URL

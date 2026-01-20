@@ -17,6 +17,7 @@ export function getAdminDb() {
     if (getApps().length === 0) {
         initializeApp({
             credential: cert(serviceAccount),
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET
         });
     }
     return getFirestore();
@@ -28,6 +29,7 @@ export function getAdminAuth() {
     if (getApps().length === 0) {
         initializeApp({
             credential: cert(serviceAccount),
+            storageBucket: process.env.FIREBASE_STORAGE_BUCKET
         });
     }
     return getAuth();
