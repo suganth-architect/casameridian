@@ -61,7 +61,13 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
     const callApi = async (url: string, method: 'POST' | 'PATCH', body?: any) => {
         setProcessing(true);
         try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
+            const auth = getFirebaseAuth();
+            if (!auth || !auth.currentUser) {
+                alert("You are not authenticated.");
+                setProcessing(false);
+                return;
+            }
+            const token = await auth.currentUser.getIdToken();
             const res = await fetch(url, {
                 method,
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -145,7 +151,7 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
                                 </span>
                                 <span>•</span>
                                 <Badge variant="outline" className="font-mono text-xs flex items-center gap-1">
-                                    ID: {booking.id}
+                                    ID: {booking.id.slice(0, 8)}
                                     <Button variant="ghost" size="icon" className="h-4 w-4 ml-1" onClick={() => navigator.clipboard.writeText(booking.id)}>
                                         <Copy className="h-2.5 w-2.5 text-slate-500" />
                                     </Button>

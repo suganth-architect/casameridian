@@ -178,7 +178,7 @@ export function BookingsTab() {
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <h3 className="font-bold text-lg">{booking.guestName}</h3>
                                         <Badge variant="outline" className="font-mono text-[10px] flex items-center gap-1">
-                                            ID: {booking.id}
+                                            ID: {booking.id.slice(0, 8)}
                                             <Button variant="ghost" size="icon" className="h-3 w-3 ml-1" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(booking.id); }}>
                                                 <Copy className="h-2 w-2 text-slate-500" />
                                             </Button>

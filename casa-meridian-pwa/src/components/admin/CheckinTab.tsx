@@ -52,7 +52,9 @@ export function CheckinTab() {
         if (!confirm(`Are you sure you want to ${action}?`)) return;
         setProcessing(bookingId);
         try {
-            const token = await getFirebaseAuth()?.currentUser?.getIdToken();
+            const auth = getFirebaseAuth();
+            if (!auth || !auth.currentUser) return;
+            const token = await auth.currentUser.getIdToken();
             const res = await fetch(`/api/admin/bookings/${bookingId}/${action}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -74,8 +76,28 @@ export function CheckinTab() {
     // Filter by search
     const filtered = bookings.filter(b =>
         (b.guestName?.toLowerCase() || '').includes(search.toLowerCase()) ||
-        (b.phone || '').includes(search)
-    );
+        (b.phone || '').includes(search) ||
+        b.id.includes(search)
+    ).sort((a, b) => {
+        // Priority: 
+        // 1. Today Arrivals (CheckIn == Today & Status == Confirmed)
+        // 2. Today Checked In (CheckIn <= Today <= CheckOut & Status == CheckedIn) -> Wait, logic says "today arrivals"
+        // Let's simplify: 
+        // 1. Arrival Today (Confirmed, CheckIn is Today)
+        // 2. Upcoming (Confirmed, CheckIn > Today)
+        // 3. Others (Checked In, Past, etc)
+
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const aIsTodayArrival = a.status === 'confirmed' && a.checkIn === todayStr;
+        const bIsTodayArrival = b.status === 'confirmed' && b.checkIn === todayStr;
+
+        if (aIsTodayArrival && !bIsTodayArrival) return -1;
+        if (!aIsTodayArrival && bIsTodayArrival) return 1;
+
+        // If both or neither today arrival, check checkin date
+        if (a.checkIn !== b.checkIn) return a.checkIn.localeCompare(b.checkIn);
+        return 0;
+    });
 
     const kycStatusColor = (status: string | undefined) => {
         switch (status) {
@@ -91,7 +113,7 @@ export function CheckinTab() {
             <div className="relative max-w-md">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
-                    placeholder="Search by Guest Name or Phone..."
+                    placeholder="Search by Guest, Phone, or ID..."
                     className="pl-8"
                     value={search}
                     onChange={e => setSearch(e.target.value)}

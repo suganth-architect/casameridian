@@ -57,26 +57,50 @@ export function VisualsTab() {
         setUploading(type);
         try {
             const token = await auth.currentUser.getIdToken();
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('category', type);
 
-            const res = await fetch('/api/admin/visuals/upload', {
+            // 1. Get Signed URL
+            const urlRes = await fetch('/api/admin/visuals/create-upload-url', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    key: type,
+                    filename: file.name,
+                    contentType: file.type
+                })
             });
 
-            if (res.ok) {
-                // Success - Firestore listener will auto-update the UI
-                alert("Uploaded successfully!");
-            } else {
-                const err = await res.json();
-                alert(err.error || "Upload failed");
-            }
-        } catch (e) {
+            if (!urlRes.ok) throw new Error("Failed to get upload URL");
+            const { uploadUrl, storagePath, publicUrl } = await urlRes.json();
+
+            // 2. Upload to Storage (PUT)
+            const uploadRes = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type },
+                body: file
+            });
+
+            if (!uploadRes.ok) throw new Error("Storage upload failed");
+
+            // 3. Confirm Upload
+            const confirmRes = await fetch('/api/admin/visuals/confirm-upload', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ key: type, storagePath, publicUrl })
+            });
+
+            if (!confirmRes.ok) throw new Error("Failed to confirm upload");
+
+            alert("Uploaded successfully!");
+
+        } catch (e: any) {
             console.error(e);
-            alert("Upload Error");
+            alert(e.message || "Upload Error");
         } finally {
             setUploading(null);
             // Reset input
