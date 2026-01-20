@@ -36,18 +36,14 @@ export async function POST(
 
             const booking = doc.data() as Booking;
 
-            // Idempotency: Unsafe to cancel checked_out
-            if (booking.status === 'checked_out') {
-                throw new Error("CANNOT_CANCEL_CHECKED_OUT");
-            }
-            // Idempotency: Unsafe to cancel checked_in (future: allow early checkout)
-            if (booking.status === 'checked_in') {
-                throw new Error("CANNOT_CANCEL_CHECKED_IN");
-            }
-
-            // Idempotency check
-            if (booking.status === 'cancelled') {
-                return { alreadyCancelled: true };
+            // STRICT RULE: Allowed only when status in ['confirmed']
+            if (booking.status !== 'confirmed') {
+                // If already cancelled, return success idempotently
+                if (booking.status === 'cancelled') {
+                    return { alreadyCancelled: true };
+                }
+                // Otherwise reject
+                throw new Error("CANCEL_NOT_ALLOWED");
             }
 
             // Perform Update
@@ -85,11 +81,8 @@ export async function POST(
         if (error.message === 'BOOKING_NOT_FOUND') {
             return NextResponse.json({ error: "Booking not found" }, { status: 404 });
         }
-        if (error.message === 'CANNOT_CANCEL_CHECKED_OUT') {
-            return NextResponse.json({ error: "Cannot cancel a checked-out booking" }, { status: 409 });
-        }
-        if (error.message === 'CANNOT_CANCEL_CHECKED_IN') {
-            return NextResponse.json({ error: "Cannot cancel a checked-in booking" }, { status: 409 });
+        if (error.message === 'CANCEL_NOT_ALLOWED') {
+            return NextResponse.json({ error: "Cancellation only allowed for confirmed bookings." }, { status: 409 });
         }
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }

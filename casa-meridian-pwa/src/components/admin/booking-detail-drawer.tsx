@@ -1,9 +1,10 @@
 import * as React from 'react';
 import { format } from 'date-fns';
+import { safeParseDate } from '@/lib/date';
 import {
     CalendarDays, CreditCard, User, Mail, Phone,
     CheckCircle, XCircle, Clock, ShieldCheck, ShieldAlert,
-    LogIn, LogOut, FileText, ExternalLink, AlertTriangle, Eye, UploadCloud
+    LogIn, LogOut, FileText, ExternalLink, AlertTriangle, Eye, UploadCloud, Copy, Clipboard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +33,7 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
     // Cancel / No-Show State
     const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false);
     const [cancelReason, setCancelReason] = React.useState('');
+    const [cancelNotes, setCancelNotes] = React.useState('');
     const [cancelType, setCancelType] = React.useState('cancelled_by_admin');
 
     const [noShowDialogOpen, setNoShowDialogOpen] = React.useState(false);
@@ -88,7 +90,8 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
     const handleCancel = async () => {
         await callApi(`/api/admin/bookings/${booking.id}/cancel`, 'POST', {
             reason: cancelReason,
-            cancellationType: cancelType
+            type: cancelType,
+            notes: cancelNotes
         });
         setCancelDialogOpen(false);
     };
@@ -110,9 +113,8 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
 
     // --- Helpers ---
     const formatDate = (ts: any) => {
-        if (!ts) return null;
-        const date = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
-        return format(date, "MMM d, yyyy h:mm a");
+        const date = safeParseDate(ts);
+        return date ? format(date, "MMM d, yyyy h:mm a") : '—';
     };
 
     // --- Timeline Data ---
@@ -142,7 +144,12 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
                                     {booking.status.toUpperCase().replace('_', ' ')}
                                 </span>
                                 <span>•</span>
-                                <span className="font-mono">{booking.id.slice(0, 8)}</span>
+                                <Badge variant="outline" className="font-mono text-xs flex items-center gap-1">
+                                    ID: {booking.id}
+                                    <Button variant="ghost" size="icon" className="h-4 w-4 ml-1" onClick={() => navigator.clipboard.writeText(booking.id)}>
+                                        <Copy className="h-2.5 w-2.5 text-slate-500" />
+                                    </Button>
+                                </Badge>
                             </DialogDescription>
                         </div>
                     </div>
@@ -388,6 +395,14 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
                                         <SelectItem value="payment_failed">Payment Failed</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Notes (Optional)</Label>
+                                <Textarea
+                                    value={cancelNotes}
+                                    onChange={e => setCancelNotes(e.target.value)}
+                                    placeholder="Internal notes..."
+                                />
                             </div>
                             <div className="flex justify-end gap-2">
                                 <Button variant="ghost" onClick={() => setCancelDialogOpen(false)}>Back</Button>

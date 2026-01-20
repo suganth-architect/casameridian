@@ -1,143 +1,170 @@
 
 import * as React from 'react';
-import { Loader2, Search, Upload, FileText, CheckCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { safeParseDate } from '@/lib/date';
+import { Search, Loader2, LogIn, LogOut, ShieldCheck, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { getFirebaseAuth } from '@/lib/firebase';
-
-interface CheckinDocs {
-    guestIdProofUrl?: string;
-    signedAgreementUrl?: string;
-    updatedAt?: string;
-}
+import { Booking } from '@/lib/types';
+import { BookingDetailDrawer } from './booking-detail-drawer';
 
 export function CheckinTab() {
+    const [bookings, setBookings] = React.useState<Booking[]>([]);
+    const [loading, setLoading] = React.useState(true);
     const [search, setSearch] = React.useState('');
-    const [bookingId, setBookingId] = React.useState('');
-    const [docs, setDocs] = React.useState<CheckinDocs | null>(null);
-    const [loading, setLoading] = React.useState(false);
-    const [uploading, setUploading] = React.useState(false);
+    const [processing, setProcessing] = React.useState<string | null>(null);
 
-    const handleSearch = async () => {
-        if (!search) return;
+    // Drawer State
+    const [selectedBooking, setSelectedBooking] = React.useState<Booking | null>(null);
+
+    const fetchBookings = async () => {
         setLoading(true);
-        // Requirement: Search by phone or bookingId. 
-        // Admin API currently gets docs by BookingId.
-        // We might need a lookup step if searching by phone.
-        // For now, let's assume search IS BookingId (UI Requirement: "Search booking by phone / bookingId")
-        // If it's phone, we need to find the active booking for that phone.
-        // Let's implement Booking Lookup locally here?
-        // Or just ask user for Booking ID.
-        // For MVP 2.0, let's defer phone lookup and stick to Booking ID or implement a basic filter in "Bookings Tab" to get ID.
-        // Actually, let's try to fetch docs directly.
-        setBookingId(search);
-
         try {
             const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            const res = await fetch(`/api/admin/checkin/${search}`, {
+            if (!token) return;
+            const res = await fetch('/api/admin/bookings', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            if (data.documents) {
-                setDocs(data.documents);
-            } else {
-                setDocs({}); // Empty but found
+            if (data.bookings) {
+                // Filter relevant bookings for check-in/out
+                const relevant = data.bookings.filter((b: Booking) =>
+                    ['confirmed', 'checked_in'].includes(b.status)
+                );
+                setBookings(relevant);
             }
-        } catch (e) {
-            console.error(e);
-            setDocs(null); // Not found or error
+        } catch (error) {
+            console.error(error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleUpload = async (file: File, type: 'guestIdProof' | 'signedAgreement') => {
-        if (!bookingId) return;
-        setUploading(true);
+    React.useEffect(() => {
+        fetchBookings();
+    }, []);
+
+    const handleAction = async (e: React.MouseEvent, bookingId: string, action: 'check-in' | 'check-out') => {
+        e.stopPropagation();
+        if (!confirm(`Are you sure you want to ${action}?`)) return;
+        setProcessing(bookingId);
         try {
             const token = await getFirebaseAuth()?.currentUser?.getIdToken();
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('type', type);
-
-            const res = await fetch(`/api/admin/checkin/${bookingId}`, {
+            const res = await fetch(`/api/admin/bookings/${bookingId}/${action}`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData
+                headers: { 'Authorization': `Bearer ${token}` }
             });
-
             if (res.ok) {
-                handleSearch(); // Refresh
-                alert("Uploaded successfully");
+                fetchBookings();
             } else {
-                alert("Upload failed");
+                const err = await res.json();
+                alert(err.error || "Action failed");
             }
         } catch (e) {
             console.error(e);
+            alert("Error");
         } finally {
-            setUploading(false);
+            setProcessing(null);
+        }
+    };
+
+    // Filter by search
+    const filtered = bookings.filter(b =>
+        (b.guestName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+        (b.phone || '').includes(search)
+    );
+
+    const kycStatusColor = (status: string | undefined) => {
+        switch (status) {
+            case 'verified': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+            case 'submitted': return 'bg-amber-100 text-amber-800 border-amber-200 animate-pulse';
+            case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
+            default: return 'bg-slate-100 text-slate-500 border-slate-200';
         }
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex gap-2 max-w-md">
-                <Input placeholder="Enter Booking ID" value={search} onChange={e => setSearch(e.target.value)} />
-                <Button onClick={handleSearch} disabled={loading}>{loading ? <Loader2 className="animate-spin" /> : <Search className="w-4 h-4" />}</Button>
+            <div className="relative max-w-md">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                    placeholder="Search by Guest Name or Phone..."
+                    className="pl-8"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
             </div>
 
-            {docs && (
-                <div className="grid md:grid-cols-2 gap-6">
-                    <Card>
-                        <CardContent className="p-6 space-y-4">
-                            <h3 className="font-bold text-lg flex items-center gap-2">
-                                <FileText className="w-5 h-5 text-[rgb(var(--meridian-blue))]" />
-                                Guest ID Proof
-                                {docs.guestIdProofUrl && <CheckCircle className="w-4 h-4 text-green-500" />}
-                            </h3>
-
-                            {docs.guestIdProofUrl ? (
-                                <div className="space-y-2">
-                                    <a href={docs.guestIdProofUrl} target="_blank" className="text-blue-600 underline text-sm break-all">View Document</a>
-                                    <p className="text-xs text-slate-400">Click to open in new tab</p>
+            <div className="space-y-4">
+                {loading ? (
+                    <div className="text-center py-8"><Loader2 className="animate-spin mx-auto" /></div>
+                ) : filtered.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">No matching bookings found.</div>
+                ) : (
+                    filtered.map(booking => (
+                        <Card key={booking.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedBooking(booking)}>
+                            <CardContent className="p-4 flex flex-col md:flex-row items-center gap-4 justify-between">
+                                {/* Info */}
+                                <div className="flex-1 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-lg">{booking.guestName}</h3>
+                                        <Badge variant="outline" className={kycStatusColor(booking.kycStatus)}>
+                                            KYC: {(booking.kycStatus || 'pending').replace('_', ' ')}
+                                        </Badge>
+                                        <Badge className={booking.status === 'confirmed' ? 'bg-green-600' : 'bg-blue-600'}>
+                                            {booking.status.replace('_', ' ')}
+                                        </Badge>
+                                    </div>
+                                    <div className="text-sm text-slate-500 flex gap-4">
+                                        <span>{booking.phone}</span>
+                                        <span>
+                                            {safeParseDate(booking.checkIn) ? format(safeParseDate(booking.checkIn)!, 'MMM d') : '-'}
+                                            {' → '}
+                                            {safeParseDate(booking.checkOut) ? format(safeParseDate(booking.checkOut)!, 'MMM d') : '-'}
+                                        </span>
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="h-32 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-sm">No Document</div>
-                            )}
 
-                            <div className="pt-4 border-t">
-                                <Label>Upload / Replace</Label>
-                                <Input type="file" className="mt-2" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0], 'guestIdProof')} disabled={uploading} />
-                            </div>
-                        </CardContent>
-                    </Card>
+                                {/* Actions */}
+                                <div className="flex items-center gap-2">
+                                    {booking.status === 'confirmed' && (
+                                        <>
+                                            <Button size="sm" variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" onClick={(e) => { e.stopPropagation(); setSelectedBooking(booking); }}>
+                                                <ShieldCheck className="w-4 h-4 mr-2" /> Verify KYC
+                                            </Button>
+                                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700" disabled={processing === booking.id || booking.kycStatus !== 'verified'} onClick={(e) => handleAction(e, booking.id, 'check-in')}>
+                                                {processing === booking.id ? <Loader2 className="animate-spin w-4 h-4" /> : <LogIn className="w-4 h-4 mr-2" />}
+                                                Check In
+                                            </Button>
+                                        </>
+                                    )}
 
-                    <Card>
-                        <CardContent className="p-6 space-y-4">
-                            <h3 className="font-bold text-lg flex items-center gap-2">
-                                <FileText className="w-5 h-5 text-[rgb(var(--meridian-blue))]" />
-                                Signed Agreement
-                                {docs.signedAgreementUrl && <CheckCircle className="w-4 h-4 text-green-500" />}
-                            </h3>
+                                    {booking.status === 'checked_in' && (
+                                        <Button size="sm" variant="outline" onClick={(e) => handleAction(e, booking.id, 'check-out')} disabled={processing === booking.id}>
+                                            {processing === booking.id ? <Loader2 className="animate-spin w-4 h-4" /> : <LogOut className="w-4 h-4 mr-2" />}
+                                            Check Out
+                                        </Button>
+                                    )}
 
-                            {docs.signedAgreementUrl ? (
-                                <div className="space-y-2">
-                                    <a href={docs.signedAgreementUrl} target="_blank" className="text-blue-600 underline text-sm break-all">View Document</a>
+                                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setSelectedBooking(booking); }}>
+                                        <Eye className="w-4 h-4" />
+                                    </Button>
                                 </div>
-                            ) : (
-                                <div className="h-32 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 text-sm">No Document</div>
-                            )}
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
+            </div>
 
-                            <div className="pt-4 border-t">
-                                <Label>Upload / Replace</Label>
-                                <Input type="file" className="mt-2" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0], 'signedAgreement')} disabled={uploading} />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+            <BookingDetailDrawer
+                booking={selectedBooking}
+                open={!!selectedBooking}
+                onClose={() => setSelectedBooking(null)}
+                onUpdate={() => { fetchBookings(); setSelectedBooking(null); }}
+            />
         </div>
     );
 }

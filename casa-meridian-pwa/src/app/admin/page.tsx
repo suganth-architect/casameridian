@@ -21,8 +21,7 @@ import { AdminProfile } from '@/lib/admin-auth';
 import Image from 'next/image';
 
 // Reuse Visuals Tab Logic Inline (since it was simple and specific)
-import { getFirestoreDb } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { VisualsTab } from '@/components/admin/VisualsTab';
 
 export const dynamic = "force-dynamic";
 
@@ -156,60 +155,4 @@ export default function AdminDashboard() {
     );
 }
 
-// Inline Visuals Tab (Keep it simple as it was)
-function VisualsTab() {
-    const [generating, setGenerating] = React.useState<string | null>(null);
-    const [assets, setAssets] = React.useState<Record<string, any>>({});
 
-    React.useEffect(() => {
-        const db = getFirestoreDb();
-        if (!db) return;
-        const unsub = onSnapshot(collection(db, 'siteAssets'), (snap) => {
-            const data: Record<string, any> = {};
-            snap.forEach(doc => { data[doc.id] = doc.data(); });
-            setAssets(data);
-        });
-        return () => unsub();
-    }, []);
-
-    const handleGenerate = async (type: string) => {
-        const auth = getFirebaseAuth();
-        if (!auth?.currentUser) return;
-        setGenerating(type);
-        try {
-            const token = await auth.currentUser.getIdToken();
-            const res = await fetch('/api/admin/generate-assets', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ type }),
-            });
-            if (res.ok) alert("Generated!");
-            else alert("Error generating");
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setGenerating(null);
-        }
-    };
-
-    return (
-        <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Sparkles className="w-5 h-5 text-amber-500" /> AI Asset Generator</CardTitle></CardHeader>
-            <CardContent className="space-y-6">
-                {['hero', 'pool', 'bedroom'].map((type) => (
-                    <div key={type} className="flex gap-4 items-center justify-between border p-4 rounded-xl">
-                        <div className="flex items-center gap-4">
-                            <div className="relative w-24 h-16 bg-slate-100 rounded overflow-hidden border">
-                                {assets[type]?.url && <Image src={assets[type].url} alt={type} fill className="object-cover" />}
-                            </div>
-                            <div className="font-bold capitalize">{type}</div>
-                        </div>
-                        <Button onClick={() => handleGenerate(type)} disabled={generating !== null} variant="outline">
-                            {generating === type ? <Loader2 className="animate-spin w-4 h-4" /> : <Sparkles className="w-4 h-4 mr-2" />} Reguenerate
-                        </Button>
-                    </div>
-                ))}
-            </CardContent>
-        </Card>
-    );
-}

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { format } from 'date-fns';
-import { Plus, Search, Calendar as CalendarIcon, Loader2, Eye } from 'lucide-react';
+import { Plus, Search, Calendar as CalendarIcon, Loader2, Eye, Copy } from 'lucide-react';
+import { safeParseDate } from '@/lib/date';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -138,14 +139,14 @@ export function BookingsTab() {
                                 <div className="space-y-2">
                                     <Label>Check In</Label>
                                     <Popover>
-                                        <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal">{formData.checkIn ? format(formData.checkIn, 'PPP') : <span>Pick date</span>}</Button></PopoverTrigger>
+                                        <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal">{formData.checkIn ? format(safeParseDate(formData.checkIn)!, 'PPP') : <span>Pick date</span>}</Button></PopoverTrigger>
                                         <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formData.checkIn} onSelect={d => setFormData({ ...formData, checkIn: d })} initialFocus /></PopoverContent>
                                     </Popover>
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Check Out</Label>
                                     <Popover>
-                                        <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal">{formData.checkOut ? format(formData.checkOut, 'PPP') : <span>Pick date</span>}</Button></PopoverTrigger>
+                                        <PopoverTrigger asChild><Button variant="outline" className="w-full justify-start text-left font-normal">{formData.checkOut ? format(safeParseDate(formData.checkOut)!, 'PPP') : <span>Pick date</span>}</Button></PopoverTrigger>
                                         <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={formData.checkOut} onSelect={d => setFormData({ ...formData, checkOut: d })} initialFocus /></PopoverContent>
                                     </Popover>
                                 </div>
@@ -176,6 +177,12 @@ export function BookingsTab() {
                                 <div className="flex-1 min-w-[200px]">
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <h3 className="font-bold text-lg">{booking.guestName}</h3>
+                                        <Badge variant="outline" className="font-mono text-[10px] flex items-center gap-1">
+                                            ID: {booking.id}
+                                            <Button variant="ghost" size="icon" className="h-3 w-3 ml-1" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(booking.id); }}>
+                                                <Copy className="h-2 w-2 text-slate-500" />
+                                            </Button>
+                                        </Badge>
                                         <Badge className={`${bookingStatusColor(booking.status)}`}>
                                             {booking.status.replace('_', ' ')}
                                         </Badge>
@@ -191,7 +198,12 @@ export function BookingsTab() {
                                     </div>
                                     <div className="text-sm text-slate-500 flex flex-col md:flex-row gap-2 md:gap-4">
                                         <span>{booking.phone}</span>
-                                        <span className="flex items-center"><CalendarIcon className="w-3 h-3 mr-1" /> {booking.checkIn} → {booking.checkOut}</span>
+                                        <span className="flex items-center">
+                                            <CalendarIcon className="w-3 h-3 mr-1" />
+                                            {safeParseDate(booking.checkIn) ? format(safeParseDate(booking.checkIn)!, 'PPP') : '—'}
+                                            {' → '}
+                                            {safeParseDate(booking.checkOut) ? format(safeParseDate(booking.checkOut)!, 'PPP') : '—'}
+                                        </span>
                                     </div>
                                 </div>
 
