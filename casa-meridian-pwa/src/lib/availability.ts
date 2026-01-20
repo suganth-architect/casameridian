@@ -80,6 +80,7 @@ export async function checkAvailability({
     // Then filter in memory for those that end after our requested start date.
     // Bookings status IN ['confirmed', 'checked_in', 'active']
     // Note: 'active' is legacy but must be checked for conflicts
+    // CRITICAL: 'cancelled' and 'no_show' (status='cancelled') are intentionally EXCLUDED to free up dates.
     const bookingsSnapshot = await adminDb.collection('bookings')
         .where('checkIn', '<', checkOut)
         .where('status', 'in', ['confirmed', 'checked_in', 'active'])

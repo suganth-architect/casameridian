@@ -97,10 +97,11 @@ export async function POST(req: Request) {
 
         await bookingRef.update({
             kycStatus: 'submitted',
+            rejectionReason: null, // Reset rejection reason on new upload
             kycDocuments: FieldValue.arrayUnion(kycDoc)
         });
 
-        return NextResponse.json({ success: true, url: signedUrl });
+        return NextResponse.json({ success: true, url: signedUrl, status: 'submitted' });
 
     } catch (error: any) {
         console.error("Upload KYC Error:", error);

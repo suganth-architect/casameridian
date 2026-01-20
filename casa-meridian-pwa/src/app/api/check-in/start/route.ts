@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { normalizePhoneDigits } from '@/lib/phone';
 import { Booking } from '@/lib/types';
-import { BOOKING_ACTIVE_STATUSES } from '@/lib/booking-status';
+import { differenceInDays, parseISO } from 'date-fns';
 
 export async function POST(req: Request) {
     try {
@@ -15,10 +15,6 @@ export async function POST(req: Request) {
         const normalizedPhone = normalizePhoneDigits(phone);
 
         // Query active/confirmed bookings
-        // We look for bookings where guest is confirmed or already checked_in
-        // We use phoneLocal as the primary lookup key if available, but for now we might need to support both or ensure we query correctly.
-        // The plan says: query bookings where phoneLocal == normalizedPhone AND status in ['confirmed','checked_in']
-
         const bookingsRef = adminDb.collection('bookings');
 
         // Try precise match on phoneLocal first (preferred)
@@ -46,16 +42,40 @@ export async function POST(req: Request) {
         const doc = snapshot.docs[0];
         const booking = doc.data() as Booking;
 
+        // Calculate nights
+        let nights = 0;
+        if (booking.checkIn && booking.checkOut) {
+            try {
+                // Ensure dates are strings YYYY-MM-DD
+                const start = parseISO(booking.checkIn);
+                const end = parseISO(booking.checkOut);
+                nights = differenceInDays(end, start);
+            } catch (e) {
+                console.error("Date parse error", e);
+            }
+        }
+
+        // Mask Guest Name: "John Doe" -> "J***n D***e"
+        const maskName = (name: string) => {
+            if (!name) return "Guest";
+            return name.split(' ').map(part => {
+                if (part.length <= 2) return part;
+                return part[0] + '*'.repeat(part.length - 2) + part[part.length - 1];
+            }).join(' ');
+        };
+
+        const maskedGuestName = maskName(booking.guestName);
+
         // Return simplified booking data safely
         return NextResponse.json({
             id: doc.id,
-            guestName: booking.guestName,
+            guestName: maskedGuestName,
             status: booking.status,
             kycStatus: booking.kycStatus || 'not_submitted',
+            rejectionReason: booking.rejectionReason || null,
             checkIn: booking.checkIn,
             checkOut: booking.checkOut,
-            // If we want to show existing documents status? 
-            // Maybe just kycStatus is enough for the UI to decide flow.
+            nights: Math.max(1, nights),
         });
 
     } catch (error) {

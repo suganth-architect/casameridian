@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getFirebaseAuth } from '@/lib/firebase';
@@ -27,10 +29,34 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
     const [rejectDialogOpen, setRejectDialogOpen] = React.useState(false);
     const [rejectReason, setRejectReason] = React.useState('');
 
+    // Cancel / No-Show State
+    const [cancelDialogOpen, setCancelDialogOpen] = React.useState(false);
+    const [cancelReason, setCancelReason] = React.useState('');
+    const [cancelType, setCancelType] = React.useState('cancelled_by_admin');
+
+    const [noShowDialogOpen, setNoShowDialogOpen] = React.useState(false);
+
+    // OTA Details State
+    const [otaSource, setOtaSource] = React.useState(booking?.source || 'direct');
+    const [extId, setExtId] = React.useState(booking?.externalBookingId || '');
+    const [extRef, setExtRef] = React.useState(booking?.externalReservationCode || '');
+    const [otaCommission, setOtaCommission] = React.useState(booking?.channelCommissionPct?.toString() || '');
+    const [payout, setPayout] = React.useState(booking?.payoutAmount?.toString() || '');
+
+    React.useEffect(() => {
+        if (booking) {
+            setOtaSource(booking.source || 'direct');
+            setExtId(booking.externalBookingId || '');
+            setExtRef(booking.externalReservationCode || '');
+            setOtaCommission(booking.channelCommissionPct?.toString() || '');
+            setPayout(booking.payoutAmount?.toString() || '');
+        }
+    }, [booking]);
+
     if (!booking) return null;
 
     // --- Actions ---
-    const callApi = async (url: string, method: 'POST', body?: any) => {
+    const callApi = async (url: string, method: 'POST' | 'PATCH', body?: any) => {
         setProcessing(true);
         try {
             const token = await getFirebaseAuth()?.currentUser?.getIdToken();
@@ -58,6 +84,29 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
     const handleRejectKyc = () => callApi(`/api/admin/bookings/${booking.id}/verify-kyc`, 'POST', { action: 'reject', reason: rejectReason });
     const handleCheckIn = () => callApi(`/api/admin/bookings/${booking.id}/check-in`, 'POST');
     const handleCheckOut = () => callApi(`/api/admin/bookings/${booking.id}/check-out`, 'POST');
+
+    const handleCancel = async () => {
+        await callApi(`/api/admin/bookings/${booking.id}/cancel`, 'POST', {
+            reason: cancelReason,
+            cancellationType: cancelType
+        });
+        setCancelDialogOpen(false);
+    };
+
+    const handleNoShow = async () => {
+        await callApi(`/api/admin/bookings/${booking.id}/no-show`, 'POST', {});
+        setNoShowDialogOpen(false);
+    };
+
+    const handleUpdateSource = async () => {
+        await callApi(`/api/admin/bookings/${booking.id}/source`, 'PATCH', {
+            source: otaSource,
+            externalBookingId: extId,
+            externalReservationCode: extRef,
+            channelCommissionPct: otaCommission ? Number(otaCommission) : undefined,
+            payoutAmount: payout ? Number(payout) : undefined
+        });
+    };
 
     // --- Helpers ---
     const formatDate = (ts: any) => {
@@ -136,6 +185,42 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
                                         </div>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* OTA Details */}
+                        <Card>
+                            <CardHeader><CardTitle className="text-base">Source & OTA Details</CardTitle></CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Source</Label>
+                                        <Select value={otaSource} onValueChange={(v) => setOtaSource(v as any)}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="direct">Direct</SelectItem>
+                                                <SelectItem value="walkin">Walk-in</SelectItem>
+                                                <SelectItem value="ota_booking_com">Booking.com</SelectItem>
+                                                <SelectItem value="ota_agoda">Agoda</SelectItem>
+                                                <SelectItem value="ota_mmt">MakeMyTrip</SelectItem>
+                                                <SelectItem value="other">Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Ext. Ref Code</Label>
+                                        <Input value={extRef} onChange={e => setExtRef(e.target.value)} placeholder="e.g. 123456" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Ext. Booking ID</Label>
+                                        <Input value={extId} onChange={e => setExtId(e.target.value)} placeholder="Official ID" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Payout Amount</Label>
+                                        <Input type="number" value={payout} onChange={e => setPayout(e.target.value)} placeholder="Amount" />
+                                    </div>
+                                </div>
+                                <Button size="sm" variant="outline" onClick={handleUpdateSource} disabled={processing}>Save Changes</Button>
                             </CardContent>
                         </Card>
 
@@ -244,10 +329,29 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
                             </Button>
 
                         </div>
+
+                        {/* Dangerous Actions */}
+                        <div className="space-y-3 pt-4 border-t">
+                            <Label className="text-xs font-semibold text-red-500 uppercase tracking-wider">Cancellations</Label>
+
+                            {/* Cancel Button */}
+                            {booking.status === 'confirmed' && (
+                                <Button variant="destructive" className="w-full" onClick={() => setCancelDialogOpen(true)} disabled={processing}>
+                                    Cancel Booking
+                                </Button>
+                            )}
+
+                            {/* No Show Button */}
+                            {booking.status === 'confirmed' && !booking.noShow && (
+                                <Button variant="destructive" className="w-full bg-red-700 hover:bg-red-800" onClick={() => setNoShowDialogOpen(true)} disabled={processing}>
+                                    Mark No-Show
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Rejection Dialog nested or separate? Nested Dialogs can be tricky. Using simple conditional rendering or state.*/}
+                {/* Rejection Dialog */}
                 <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
                     <DialogContent>
                         <DialogHeader><DialogTitle>Reject KYC Documents</DialogTitle></DialogHeader>
@@ -266,10 +370,53 @@ export function BookingDetailDrawer({ booking, open, onClose, onUpdate }: Bookin
                     </DialogContent>
                 </Dialog>
 
+                {/* Cancel Dialog */}
+                <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>Cancel Booking</DialogTitle></DialogHeader>
+                        <div className="space-y-4 py-2">
+                            <Label>Cancellation Reason</Label>
+                            <Textarea value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="Why is this being cancelled?" />
+                            <div className="space-y-2">
+                                <Label>Type</Label>
+                                <Select value={cancelType} onValueChange={(v) => setCancelType(v as any)}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="cancelled_by_admin">By Admin</SelectItem>
+                                        <SelectItem value="cancelled_by_guest">By Guest</SelectItem>
+                                        <SelectItem value="cancelled_by_ota">By OTA</SelectItem>
+                                        <SelectItem value="payment_failed">Payment Failed</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="ghost" onClick={() => setCancelDialogOpen(false)}>Back</Button>
+                                <Button variant="destructive" onClick={handleCancel} disabled={!cancelReason || processing}>Confirm Cancellation</Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                {/* No Show Dialog */}
+                <Dialog open={noShowDialogOpen} onOpenChange={setNoShowDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader><DialogTitle>Mark No-Show</DialogTitle></DialogHeader>
+                        <div className="space-y-4 py-2">
+                            <p className="text-sm text-slate-500">
+                                This will cancel the booking and mark it as a No-Show. The dates will be freed immediately.
+                            </p>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="ghost" onClick={() => setNoShowDialogOpen(false)}>Back</Button>
+                                <Button variant="destructive" onClick={handleNoShow} disabled={processing}>Confirm No-Show</Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
                 <DialogFooter>
                     <Button variant="ghost" onClick={onClose}>Close</Button>
                 </DialogFooter>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }

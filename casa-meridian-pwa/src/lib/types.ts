@@ -47,6 +47,32 @@ export interface Booking {
 
     approvedAt?: Timestamp; // timestamp when confirmed
 
+    // OTA / Source Fields
+    source?: 'direct' | 'walkin' | 'ota_booking_com' | 'ota_agoda' | 'ota_mmt' | 'other';
+    externalBookingId?: string;
+    externalReservationCode?: string;
+    channelCommissionPct?: number;
+    paymentMode?: 'prepaid' | 'hotel_collect' | 'partial';
+    payoutAmount?: number;
+    otaMeta?: Record<string, any>;
+
+    // Cancellation Fields
+    cancelledAt?: Timestamp;
+    cancelledBy?: string;
+    cancellationReason?: string;
+    cancellationType?: 'cancelled_by_guest' | 'cancelled_by_admin' | 'cancelled_by_ota' | 'payment_failed' | 'no_show';
+    cancellationNotes?: string;
+
+    // Refund Fields
+    refundStatus?: 'none' | 'pending' | 'completed';
+    refundAmount?: number;
+    refundReference?: string;
+
+    // No-Show Fields
+    noShow?: boolean;
+    noShowAt?: Timestamp;
+    noShowMarkedBy?: string;
+
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }

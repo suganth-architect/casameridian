@@ -179,6 +179,12 @@ export function BookingsTab() {
                                         <Badge className={`${bookingStatusColor(booking.status)}`}>
                                             {booking.status.replace('_', ' ')}
                                         </Badge>
+                                        {booking.noShow && <Badge variant="destructive">No-Show</Badge>}
+                                        {booking.source && booking.source.startsWith('ota_') && (
+                                            <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-purple-200">
+                                                {booking.source.replace('ota_', '').toUpperCase()}
+                                            </Badge>
+                                        )}
                                         <Badge variant="outline" className={`${kycStatusColor(booking.kycStatus || 'not_submitted')}`}>
                                             KYC: {(booking.kycStatus || 'not_submitted').replace('_', ' ')}
                                         </Badge>
