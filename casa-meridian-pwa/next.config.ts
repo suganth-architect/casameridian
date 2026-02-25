@@ -19,6 +19,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
+      {
+        // Google Drive direct image URLs (uc?id=...&export=view)
+        protocol: 'https',
+        hostname: 'drive.google.com',
+      },
     ],
   },
 

@@ -11,26 +11,27 @@ interface GalleryItem {
     fallback: string;
 }
 
+// Casa Meridian actual property photos (lh3 CDN serves Google Drive public files)
 const GALLERY_ITEMS: GalleryItem[] = [
     {
         id: 'pool',
         label: 'Infinity Pool',
-        fallback: 'https://images.unsplash.com/photo-1572331165267-854da2b00dc1?q=80&w=800'
+        fallback: 'https://lh3.googleusercontent.com/d/1hlBcP8pJ_RKqNmTZsvfdrM5liD1U7Zn9'
     },
     {
         id: 'bedroom',
         label: 'Master Suite',
-        fallback: 'https://images.unsplash.com/photo-1616594039964-40891a909543?q=80&w=800'
+        fallback: 'https://lh3.googleusercontent.com/d/1-rqMg9-7j6hUrheXZBvjzUOm052Kh9th'
     },
     {
         id: 'hero',
         label: 'The Villa',
-        fallback: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?q=80&w=800'
+        fallback: 'https://lh3.googleusercontent.com/d/1WA9lcc5QXXbWpnj45qrLE1lt7h6IQwVv'
     },
     {
         id: 'dining',
         label: 'Al Fresco Dining',
-        fallback: 'https://images.unsplash.com/photo-1615529182904-14819c35db37?q=80&w=800'
+        fallback: 'https://lh3.googleusercontent.com/d/16omXTAXXlHJ2H5IofwvKen02vYF3k8PK'
     }
 ];
 

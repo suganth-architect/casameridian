@@ -9,8 +9,10 @@ import { ArrowDown } from 'lucide-react';
 import { getFirestoreDb } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-// Stable Fallback URL
-const FALLBACK_URL = "https://images.unsplash.com/photo-1613490493576-7fde63acd811?q=80&w=1920";
+// Casa Meridian property hero photo (Google Drive → lh3 CDN)
+const PROPERTY_HERO = "https://lh3.googleusercontent.com/d/1WA9lcc5QXXbWpnj45qrLE1lt7h6IQwVv";
+// Fallback used only if Drive CDN is unreachable
+const FALLBACK_URL = PROPERTY_HERO;
 
 export function Hero() {
     const [src, setSrc] = React.useState<string>(FALLBACK_URL);
