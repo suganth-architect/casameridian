@@ -61,7 +61,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-gray-50 text-gray-900 antialiased">
         <SiteHeader />
-        <main className="min-h-screen pt-16 pb-24">
+        <main className="min-h-screen pt-16 pb-24 lg:pb-0">
           {children}
         </main>
         <SiteFooter />
