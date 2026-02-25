@@ -94,7 +94,7 @@ export default function FoodPage() {
             <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-200 p-4 shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-50 safe-area-bottom">
                 <div className="max-w-md mx-auto flex gap-3">
                     <a
-                        href="https://wa.me/919840922883"
+                        href="https://wa.me/919500003388"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-1 bg-green-600 text-white py-3.5 rounded-xl font-medium text-sm text-center shadow-lg shadow-green-600/20 hover:bg-green-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
@@ -103,7 +103,7 @@ export default function FoodPage() {
                         <span>WhatsApp</span>
                     </a>
                     <a
-                        href="tel:+919840922883"
+                        href="tel:+919500003388"
                         className="flex-1 bg-[#D4AF37] text-white py-3.5 rounded-xl font-medium text-sm text-center shadow-lg shadow-amber-500/20 hover:bg-[#c4a130] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                         <Phone className="w-4 h-4" />

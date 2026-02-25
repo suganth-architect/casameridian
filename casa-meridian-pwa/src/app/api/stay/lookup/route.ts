@@ -48,8 +48,10 @@ export async function GET(req: NextRequest) {
 
         let bookings = Array.from(allDocs.values());
 
-        // Filter valid statuses
-        bookings = bookings.filter(b => ['confirmed', 'active', 'completed'].includes(b.status));
+        // Filter valid statuses (include legacy 'active'/'completed' for backwards compat)
+        bookings = bookings.filter(b =>
+            ['confirmed', 'checked_in', 'checked_out', 'active', 'completed'].includes(b.status)
+        );
 
         // Sort by checkIn ascending
         bookings.sort((a, b) => a.checkIn.localeCompare(b.checkIn));

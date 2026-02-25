@@ -9,8 +9,13 @@ const config: Config = {
     theme: {
         extend: {
             colors: {
+                // Casa Meridian brand colours — also registered via @theme in globals.css
                 "meridian-blue": "rgb(var(--meridian-blue))",
                 "meridian-gold": "rgb(var(--meridian-gold))",
+            },
+            fontFamily: {
+                // Montserrat Variable font bundled via @fontsource-variable/montserrat
+                montserrat: ['"Montserrat Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
             },
         },
     },
