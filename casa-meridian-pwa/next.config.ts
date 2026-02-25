@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   images: {
     remotePatterns: [
       {
@@ -16,11 +15,25 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'firebasestorage.googleapis.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
+      {
+        // Google Drive direct image URLs (uc?id=...&export=view)
+        protocol: 'https',
+        hostname: 'drive.google.com',
+      },
     ],
   },
 
   typescript: {
     ignoreBuildErrors: true,
+  },
+
+  experimental: {
+    // Use system TLS certificates for Turbopack (required in some environments)
+    turbopackUseSystemTlsCerts: true,
   },
 };
 

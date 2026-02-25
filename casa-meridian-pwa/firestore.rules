@@ -1,9 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Check if the request is valid structure
-    function isValidRequest() {
+
+    // Helper: verified admin (owner or standard admin)
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.email == 'luckysuganth@gmail.com' ||
+        request.auth.token.email == 'mbsujith23@gmail.com'
+      );
+    }
+
+    // Helper: valid new booking request structure
+    function isValidBookingRequest() {
       return request.resource.data.status == 'pending' &&
              request.resource.data.source == 'pwa' &&
              request.resource.data.guestName is string &&
@@ -12,18 +20,50 @@ service cloud.firestore {
              request.resource.data.phone.size() > 0;
     }
 
-    match /bookingRequests/{requestId} {
-      allow create: if isValidRequest();
-      allow read, update, delete: if request.auth != null && 
-        (request.auth.token.email == 'luckysuganth@gmail.com' || 
-         request.auth.token.email == 'mbsujith23@gmail.com');
+    // ── Public site assets (hero, gallery images) ──────────────────────────
+    match /siteAssets/{assetId} {
+      allow read: if true;          // Public read (hero + gallery images)
+      allow write: if isAdmin();
     }
-    
+
+    // ── Booking requests (guests create, admins manage) ────────────────────
+    match /bookingRequests/{requestId} {
+      allow create: if isValidBookingRequest();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ── Confirmed bookings ─────────────────────────────────────────────────
     match /bookings/{bookingId} {
+      allow read: if true;          // Guests look up their own booking (client-side)
+      allow write: if isAdmin();
+    }
+
+    // ── Guest in-stay service requests ────────────────────────────────────
+    match /guestRequests/{requestId} {
+      allow create: if request.auth != null; // Any authenticated guest
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ── Calendar blocks and manual date blocks ─────────────────────────────
+    match /calendarBlocks/{blockId} {
       allow read: if true;
-      allow write: if request.auth != null && 
-        (request.auth.token.email == 'luckysuganth@gmail.com' || 
-         request.auth.token.email == 'mbsujith23@gmail.com');
+      allow write: if isAdmin();
+    }
+
+    match /blockedDates/{blockId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Admin user profiles ────────────────────────────────────────────────
+    match /admins/{uid} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── Visual upload history ──────────────────────────────────────────────
+    match /visuals/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }

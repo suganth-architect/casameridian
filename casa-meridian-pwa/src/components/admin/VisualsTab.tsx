@@ -94,7 +94,7 @@ export function VisualsTab() {
         }
     };
 
-    const categories = ['hero', 'pool', 'bedroom'];
+    const categories = ['hero', 'pool', 'bedroom', 'dining'];
 
     return (
         <Card>

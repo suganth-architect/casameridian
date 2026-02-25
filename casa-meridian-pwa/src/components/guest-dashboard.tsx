@@ -167,7 +167,7 @@ export function GuestDashboard({ guestName, checkIn, checkOut, nights, phone }: 
             </Card>
 
             <div className="flex justify-center pt-4">
-                <a href="tel:+919876543210" className="inline-flex items-center gap-2 text-muted-foreground hover:text-amber-600 transition-colors text-sm">
+                <a href="tel:+919500003388" className="inline-flex items-center gap-2 text-muted-foreground hover:text-amber-600 transition-colors text-sm">
                     <Phone className="h-4 w-4" />
                     <span>Contact Front Desk</span>
                 </a>
